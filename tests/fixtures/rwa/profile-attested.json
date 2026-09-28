@@ -1,0 +1,22 @@
+{
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "binanceChainId": "56",
+    "tokenContractAddress": "0x1a2b3c4d00000000000000000000000000c0ffee",
+    "platformId": "bstock",
+    "underlyingTicker": "QQQ",
+    "underlyingFullName": "Invesco QQQ Trust, Series 1",
+    "assetType": 1,
+    "tokenToShareRatio": "1",
+    "protections": {
+      "dailyAttestationReport": { "supported": false, "url": null },
+      "monthlyAttestationReport": {
+        "supported": true,
+        "url": "https://static.example.test/attestation/monthly-2026-08.pdf"
+      }
+    }
+  },
+  "timestamp": 1790000000000,
+  "success": true
+}

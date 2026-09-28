@@ -1,0 +1,16 @@
+{
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "binanceChainId": "56",
+    "tokenContractAddress": "0x1a2b3c4d00000000000000000000000000c0ffee",
+    "platformId": "bstock",
+    "underlyingTicker": "QQQ",
+    "protections": {
+      "dailyAttestationReport": { "supported": false, "url": null },
+      "monthlyAttestationReport": { "supported": false, "url": null }
+    }
+  },
+  "timestamp": 1790000000000,
+  "success": true
+}

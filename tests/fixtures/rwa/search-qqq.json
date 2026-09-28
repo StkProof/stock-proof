@@ -1,0 +1,48 @@
+{
+  "code": 0,
+  "msg": "success",
+  "data": [
+    {
+      "ticker": "QQQ",
+      "companyName": "Invesco QQQ Trust",
+      "assets": [
+        {
+          "platformId": "bstock",
+          "binanceChainId": "56",
+          "tokenContractAddress": "0x1a2B3c4d00000000000000000000000000C0FFEE",
+          "tokenSymbol": "QQQB",
+          "assetType": 1
+        },
+        {
+          "platformId": "ondo",
+          "binanceChainId": "56",
+          "tokenContractAddress": "0xa9ee28c80f960b889dfbd1902055218cba016f75",
+          "tokenSymbol": "QQQon",
+          "assetType": 1
+        },
+        {
+          "platformId": "bstock",
+          "binanceChainId": "1",
+          "tokenContractAddress": "0x2222222222222222222222222222222222222222",
+          "tokenSymbol": "QQQB",
+          "assetType": 1
+        }
+      ]
+    },
+    {
+      "ticker": "QQQM",
+      "companyName": "Invesco NASDAQ 100 ETF",
+      "assets": [
+        {
+          "platformId": "bstock",
+          "binanceChainId": "56",
+          "tokenContractAddress": "0x3333333333333333333333333333333333333333",
+          "tokenSymbol": "QQQMB",
+          "assetType": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": 1790000000000,
+  "success": true
+}
