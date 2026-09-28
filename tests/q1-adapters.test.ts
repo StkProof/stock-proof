@@ -31,7 +31,7 @@ const sign = vi.fn((method: string, requestPath: string) => ({
   "X-OC-SIGN": `${SIGNATURE}:${method}:${requestPath}`,
 }));
 
-const deps: RwaDeps = { sign, baseUrl: "https://web3.binance.test/build" };
+const deps: RwaDeps = { sign, baseUrl: "https://web3.binance.com/build" };
 
 type Route = { match: string; reply: () => Response | Error };
 
@@ -108,7 +108,7 @@ describe("searchRwa", () => {
 
     expect(sign).toHaveBeenCalledWith("GET", "/build/api/v1/dex/market/rwa/search?keyword=QQQ", "");
     expect(calledUrls(fake)).toEqual([
-      "https://web3.binance.test/build/api/v1/dex/market/rwa/search?keyword=QQQ",
+      "https://web3.binance.com/build/api/v1/dex/market/rwa/search?keyword=QQQ",
     ]);
   });
 
@@ -168,7 +168,7 @@ describe("getUnderlyingProfile", () => {
       ],
     });
     expect(calledUrls(fake)[0]).toBe(
-      `https://web3.binance.test/build/api/v1/dex/market/rwa/underlying-profile?binanceChainId=56&tokenContractAddress=${BSTOCK}`,
+      `https://web3.binance.com/build/api/v1/dex/market/rwa/underlying-profile?binanceChainId=56&tokenContractAddress=${BSTOCK}`,
     );
   });
 

@@ -139,7 +139,7 @@ export function truncateResponse(text: string): LoggedResponse {
     return { body: bytes.subarray(0, end).toString("utf8"), truncated: true };
   }
   try {
-    return { body: redactValue(JSON.parse(text)), truncated: false };
+    return { body: redactValue(JSON.parse(text), new WeakSet()), truncated: false };
   } catch {
     return { body: text, truncated: false };
   }
