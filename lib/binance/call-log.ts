@@ -8,6 +8,11 @@ export const RESPONSE_LIMIT_BYTES = 20 * 1024;
 
 export const HIDDEN = "[oculto]";
 
+const CIRCULAR = "[circular]";
+
+/** Valores más cortos no se buscan en la respuesta: taparían texto común. */
+const MIN_SECRET_LENGTH = 8;
+
 const UNKNOWN = "desconocido";
 
 /** Campos de `params` que nunca se anotan: se busca el texto dentro del nombre, sin distinguir mayúsculas. */
@@ -53,33 +58,66 @@ export type CallLogEntry = {
 
 /** Copia de `params` con los campos secretos reemplazados por `"[oculto]"`, también en objetos anidados. */
 export function redactParams(params: Record<string, unknown>): Record<string, unknown> {
-  return redactValue(params) as Record<string, unknown>;
+  return redactValue(params, new WeakSet()) as Record<string, unknown>;
 }
 
-function redactValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(redactValue);
+/** Un objeto que se contiene a sí mismo se anota como `"[circular]"` en vez de recorrerse sin fin. */
+function redactValue(value: unknown, seen: WeakSet<object>): unknown {
   if (value === null || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.entries(value).map(([name, inner]) => [
-      name,
-      SECRET_NAME.test(name) ? HIDDEN : redactValue(inner),
-    ]),
-  );
+  if (seen.has(value)) return CIRCULAR;
+  seen.add(value);
+  const copy = Array.isArray(value)
+    ? value.map((inner) => redactValue(inner, seen))
+    : Object.fromEntries(
+        Object.entries(value).map(([name, inner]) => [
+          name,
+          SECRET_NAME.test(name) ? HIDDEN : redactValue(inner, seen),
+        ]),
+      );
+  seen.delete(value);
+  return copy;
+}
+
+/** Nombre de header o de parámetro que lleva un secreto. */
+export function isSecretName(name: string): boolean {
+  return SECRET_NAME.test(name);
+}
+
+/**
+ * Reemplaza en `text` cada valor secreto por `"[oculto]"`. Cubre una respuesta de Binance que
+ * repita la key o la firma: los archivos del registro se suben al repo.
+ */
+export function scrubSecrets(text: string, secrets: string[]): string {
+  return secrets
+    .filter((secret) => secret.length >= MIN_SECRET_LENGTH)
+    .reduce((clean, secret) => clean.split(secret).join(HIDDEN), text);
 }
 
 /** Corta el texto a 20 KB. Si no se cortó y es JSON válido, lo devuelve como objeto. */
 export function truncateResponse(text: string): LoggedResponse {
   const bytes = Buffer.from(text, "utf8");
   if (bytes.length > RESPONSE_LIMIT_BYTES) {
-    // Un corte en medio de un carácter deja un «�» al final: se descarta.
-    const cut = bytes.subarray(0, RESPONSE_LIMIT_BYTES).toString("utf8").replace(/�$/, "");
-    return { body: cut, truncated: true };
+    const end = completeUtf8End(bytes, RESPONSE_LIMIT_BYTES);
+    return { body: bytes.subarray(0, end).toString("utf8"), truncated: true };
   }
   try {
     return { body: JSON.parse(text), truncated: false };
   } catch {
     return { body: text, truncated: false };
   }
+}
+
+/**
+ * Largo del corte sin dejar un carácter UTF-8 a medias al final. Mira los bytes, no el texto
+ * decodificado: un «�» que venía en la respuesta es un carácter válido y se conserva.
+ */
+function completeUtf8End(bytes: Buffer, limit: number): number {
+  let start = limit - 1;
+  // Retrocede sobre los bytes de continuación (10xxxxxx) hasta el primer byte del último carácter.
+  while (start > 0 && limit - start < 4 && (bytes[start] & 0xc0) === 0x80) start--;
+  const lead = bytes[start];
+  const length = lead < 0x80 ? 1 : lead >= 0xf0 ? 4 : lead >= 0xe0 ? 3 : lead >= 0xc0 ? 2 : 1;
+  return start + length <= limit ? limit : start;
 }
 
 export function newEvaluationId(): string {

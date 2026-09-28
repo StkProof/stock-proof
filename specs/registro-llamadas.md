@@ -58,6 +58,8 @@ La puerta no inventa estos valores: los pasa quien llama. Para que el identifica
 ## Reglas fijas
 
 - **Nunca se anota la API key ni el secreto.** No se guardan los headers. En `params`, cualquier campo llamado `apiKey`, `secret`, `signature` o parecido se reemplaza por `"[oculto]"`.
+- **Si Binance repite un secreto en la respuesta, se tapa.** Antes de anotar el cuerpo, los valores de headers, query string y `params` con nombre de secreto se reemplazan por `"[oculto]"`. Quien llama recibe la respuesta intacta.
+- **La key solo sale hacia Binance.** La puerta solo llama por https a `binance.com` y sus subdominios (`ALLOWED_HOST_SUFFIXES` en `lib/binance/request.ts`). Otro host se rechaza antes de llamar, se anota con `status: null` y lanza un error. Si una API de Binance vive en otro dominio, se agrega a la lista y a esta spec.
 - **El registro no cambia el resultado.** Lo que devuelve la puerta es exactamente lo que devolvió Binance, con o sin registro.
 - **Sin `caller`, la línea queda como `desconocido`.** No se borra: el resumen decide cómo clasificarla.
 - **Clasificar, no descartar.** Ninguna línea se borra del registro. El resumen separa fricción de desarrollo (errores, límites, documentación) de números de mercado (llamadas controladas y demo).
@@ -86,7 +88,8 @@ La puerta no inventa estos valores: los pasa quien llama. Para que el identifica
 ## Casos borde
 
 - Respuesta que no es JSON (por ejemplo, una página de error HTML): se guarda como texto, recortada a 20 KB.
-- Respuesta muy grande: se recorta a 20 KB y se marca `truncated: true`. El resto no se guarda.
+- Respuesta muy grande: se recorta a 20 KB y se marca `truncated: true`. El resto no se guarda. El corte no deja un carácter UTF-8 a medias; un «�» que venía en la respuesta se conserva.
+- `params` con referencias circulares: la repetición se anota como `"[circular]"` y la llamada sigue.
 - Llamadas en paralelo: cada una escribe su línea completa. El orden de las líneas es el orden en que terminaron.
 - Deploy con disco de solo lectura: el registro falla sin romper nada. Los datos del informe salen de las corridas locales y de la demo.
 - `STOCKPROOF_CALLER` con un valor fuera de la lista: se anota tal cual, para no perder la línea, y el resumen decide qué hacer con ella.

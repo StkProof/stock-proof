@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newEvaluationId, type CallLogEntry } from "@/lib/binance/call-log";
 import { binanceRequest } from "@/lib/binance/request";
 
-const URL_QUOTE = "https://api.binance.test/sapi/v1/rwa/quote?symbol=NVDA";
+const URL_QUOTE = "https://api.binance.com/sapi/v1/rwa/quote?symbol=NVDA";
 const ENV_KEYS = ["STOCKPROOF_CALLER", "STOCKPROOF_ENV", "STOCKPROOF_LOG_DIR"] as const;
 
 let dir: string;
@@ -244,6 +244,95 @@ describe("binanceRequest", () => {
     expect(entries.map((e) => e.context.wrapper)).toEqual(["bstocks", "ondo", "xstocks"]);
     expect(entries[0].context.referencePriceAt).toBe(referencePriceAt);
     expect(entries[2].context.txHash).toBe(txHash);
+  });
+});
+
+describe("binanceRequest: casos de la revisión", () => {
+  it("anota params con referencias circulares sin romper la llamada", async () => {
+    const original = Response.json({ ok: true });
+    stubFetch(original);
+    const params: Record<string, unknown> = { symbol: "NVDA" };
+    params.self = params;
+
+    const returned = await binanceRequest({ api: "rwa", url: URL_QUOTE, params });
+
+    expect(returned).toBe(original);
+    const [entry] = await readLines();
+    expect(entry.params).toEqual({ symbol: "NVDA", self: "[circular]" });
+  });
+
+  it("con params circulares y falla de red, relanza el error original", async () => {
+    const failure = new TypeError("fetch failed");
+    stubFetch(failure);
+    const params: Record<string, unknown> = {};
+    params.self = params;
+
+    await expect(binanceRequest({ api: "rwa", url: URL_QUOTE, params })).rejects.toBe(failure);
+  });
+
+  it("al recortar conserva un «\uFFFD» que venía completo en la respuesta", async () => {
+    const text = "a".repeat(20 * 1024 - 3) + "\uFFFD" + "b".repeat(100);
+    stubFetch(new Response(text));
+
+    await binanceRequest({ api: "rwa", url: URL_QUOTE });
+
+    const [entry] = await readLines();
+    expect(entry.response?.body).toBe("a".repeat(20 * 1024 - 3) + "\uFFFD");
+  });
+
+  it("al recortar no deja un carácter UTF-8 a medias", async () => {
+    // «ñ» ocupa 2 bytes: el límite cae entre sus dos bytes.
+    const text = "a".repeat(20 * 1024 - 1) + "ñ" + "b".repeat(100);
+    stubFetch(new Response(text));
+
+    await binanceRequest({ api: "rwa", url: URL_QUOTE });
+
+    const [entry] = await readLines();
+    expect(entry.response?.body).toBe("a".repeat(20 * 1024 - 1));
+    expect(entry.response?.truncated).toBe(true);
+  });
+
+  it("tapa en la respuesta la key y la firma si Binance las repite", async () => {
+    const echoed = { msg: "firma inválida", apiKey: "clave-secreta", got: "firma-secreta" };
+    const original = Response.json(echoed, { status: 400 });
+    stubFetch(original);
+
+    const returned = await binanceRequest({
+      api: "trading",
+      url: `${URL_QUOTE}&signature=firma-secreta`,
+      headers: { "X-MBX-APIKEY": "clave-secreta" },
+    });
+
+    // Quien llama recibe la respuesta intacta; solo el registro la tapa.
+    expect(await returned.json()).toEqual(echoed);
+    const text = await readFile(path.join(dir, "binance-calls-test.jsonl"), "utf8");
+    expect(text).not.toContain("clave-secreta");
+    expect(text).not.toContain("firma-secreta");
+    const [entry] = await readLines();
+    expect(entry.response?.body).toEqual({
+      msg: "firma inválida",
+      apiKey: "[oculto]",
+      got: "[oculto]",
+    });
+  });
+
+  it("no manda la key a un host que no es de Binance, y anota el rechazo", async () => {
+    const fake = stubFetch(Response.json({}));
+
+    for (const url of [
+      "https://evil.example/api/v3/ticker/price",
+      "https://binance.com.evil.example/x",
+      "http://api.binance.com/api/v3/ticker/price",
+    ]) {
+      await expect(
+        binanceRequest({ api: "market", url, headers: { "X-MBX-APIKEY": "clave-secreta" } }),
+      ).rejects.toThrow("host no permitido");
+    }
+
+    expect(fake).not.toHaveBeenCalled();
+    const entries = await readLines();
+    expect(entries).toHaveLength(3);
+    expect(entries.every((e) => e.status === null && e.ok === false)).toBe(true);
   });
 });
 
