@@ -57,7 +57,7 @@ La puerta no inventa estos valores: los pasa quien llama. Para que el identifica
 
 ## Reglas fijas
 
-- **Nunca se anota la API key ni el secreto.** No se guardan los headers. En `params`, cualquier campo llamado `apiKey`, `secret`, `signature` o parecido se reemplaza por `"[oculto]"`.
+- **Nunca se anota la API key ni el secreto.** No se guardan los headers. En `params`, en `context` y en el cuerpo JSON de la respuesta, cualquier campo llamado `apiKey`, `secret`, `signature` o parecido se reemplaza por `"[oculto]"`.
 - **El registro no cambia el resultado.** Lo que devuelve la puerta es exactamente lo que devolvió Binance, con o sin registro.
 - **Sin `caller`, la línea queda como `desconocido`.** No se borra: el resumen decide cómo clasificarla.
 - **Clasificar, no descartar.** Ninguna línea se borra del registro. El resumen separa fricción de desarrollo (errores, límites, documentación) de números de mercado (llamadas controladas y demo).
@@ -142,7 +142,7 @@ Crear `lib/binance/call-log.ts` con:
   - `CallContext = { ticker?: string; amountUsd?: number; side?: "buy" | "sell"; wrapper?: WrapperId; purpose?: string; evaluationId?: string; referencePriceAt?: string; txHash?: string }`. Importar `WrapperId` de `lib/evaluate.ts`; no redefinirlo.
   - `CallLogEntry` con exactamente los campos de la tabla «Qué anota cada línea».
 - `redactParams(params)`: devuelve una copia donde todo campo cuyo nombre termine en `key`, `secret`, `sign`, `signature`, `token` o `password` (sin distinguir mayúsculas) vale `"[oculto]"`. Se mira el final del nombre: `keyword` y `tokenContractAddress` se anotan. Recorre objetos anidados. No modifica el original.
-- `truncateResponse(body)`: si el texto pasa los 20 KB (20 × 1024 bytes en UTF-8), lo corta y devuelve `{ body, truncated: true }`. Si no, `{ body, truncated: false }`. Si el texto es JSON válido y no se cortó, guardarlo como objeto; si no, como texto.
+- `truncateResponse(body)`: si el texto pasa los 20 KB (20 × 1024 bytes en UTF-8), lo corta y devuelve `{ body, truncated: true }`. Si no, `{ body, truncated: false }`. Si el texto es JSON válido y no se cortó, guardarlo como objeto, con los campos secretos ocultos con la misma regla que `redactParams`; si no, como texto.
 - `newEvaluationId()`: devuelve `crypto.randomUUID()` (de `node:crypto`). Sin dependencias nuevas.
 - `resolveCaller()` y `resolveEnv()`: leen `STOCKPROOF_CALLER` y `STOCKPROOF_ENV`. Si faltan o están vacíos, devuelven `"desconocido"`.
 - `logFilePath(caller)`: `<dir>/binance-calls-<caller>.jsonl`, donde `<dir>` es `STOCKPROOF_LOG_DIR` o, si falta, `logs/` relativo a `process.cwd()`. Antes de armar el nombre, limpiar `caller` para que solo tenga `a-z`, `0-9` y `-` (evita escribir fuera de la carpeta).
@@ -170,7 +170,7 @@ Comportamiento:
 
 1. Toma la hora (`ts`) y arranca el cronómetro con `performance.now()`.
 2. Llama a `fetch(req.url, { method, headers, body })`.
-3. **Si `fetch` responde** (cualquier código HTTP, incluido 4xx y 5xx): lee el cuerpo desde `response.clone().text()`, arma la línea con `ok = response.ok`, `status = response.status`, `error = null` si salió bien o `"HTTP <status>"` si no. Espera a `writeCallLog`. Devuelve **la `Response` original**, sin tocar.
+3. **Si `fetch` responde** (cualquier código HTTP, incluido 4xx y 5xx): lee el cuerpo del clon con `readForLog`: como máximo 20 KB y un byte, y cancela el resto; si el cuerpo tarda más de 5 segundos, la línea queda sin cuerpo. Así una respuesta enorme o que no termina no bloquea la puerta, y la original queda entera para quien llamó. Después arma la línea con `ok = response.ok`, `status = response.status`, `error = null` si salió bien o `"HTTP <status>"` si no. Espera a `writeCallLog`. Devuelve **la `Response` original**, sin tocar.
 4. **Si `fetch` lanza** (red caída, DNS, timeout): arma la línea con `status: null`, `ok: false`, `error: <mensaje>` y `response: null`. Espera a `writeCallLog`. Vuelve a lanzar **el mismo error**.
 5. `endpoint` es el `pathname` de la URL, sin host ni query string. `params` pasa por `redactParams`. Los headers no se guardan nunca.
 6. Si leer el clon falla, se anota `response: null` y la llamada sigue.

@@ -1,5 +1,6 @@
 import {
   messageOf,
+  readForLog,
   redactParams,
   resolveCaller,
   resolveEnv,
@@ -49,7 +50,7 @@ export async function binanceRequest(req: BinanceRequest): Promise<Response> {
     endpoint: endpointOf(req.url),
     method,
     params: redactParams(req.params ?? {}),
-    context: req.context ?? {},
+    context: redactParams(req.context ?? {}) as CallContext,
     durationMs,
     ...fields,
   });
@@ -68,7 +69,7 @@ export async function binanceRequest(req: BinanceRequest): Promise<Response> {
 
   let logged: LoggedResponse | null = null;
   try {
-    logged = truncateResponse(await response.clone().text());
+    logged = truncateResponse(await readForLog(response));
   } catch {
     // Si no se puede leer el clon, la línea queda sin cuerpo y la llamada sigue.
   }

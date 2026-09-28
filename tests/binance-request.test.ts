@@ -226,6 +226,46 @@ describe("binanceRequest", () => {
     expect(Buffer.byteLength(entry.response?.body as string, "utf8")).toBe(20 * 1024);
   });
 
+  it("no se queda esperando una respuesta que no termina: lee 20 KB y devuelve el original legible", async () => {
+    const chunk = new TextEncoder().encode("x".repeat(1024));
+    let sent = 0;
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(chunk);
+        sent += 1;
+      },
+    });
+    stubFetch(new Response(endless, { status: 200 }));
+
+    const returned = await binanceRequest({ api: "rwa", url: URL_QUOTE });
+
+    const [entry] = await readLines();
+    expect(entry.response?.truncated).toBe(true);
+    expect(Buffer.byteLength(entry.response?.body as string, "utf8")).toBe(20 * 1024);
+    expect(sent).toBeLessThan(100);
+    const reader = returned.body!.getReader();
+    const first = await reader.read();
+    expect(first.value?.byteLength).toBe(1024);
+    await reader.cancel();
+  });
+
+  it("oculta los campos secretos del cuerpo de la respuesta y del contexto", async () => {
+    stubFetch(Response.json({ price: "1", accessToken: "token-filtrado", nested: { apiKey: "k" } }));
+
+    await binanceRequest({
+      api: "rwa",
+      url: URL_QUOTE,
+      context: { ticker: "NVDA", ...({ apiKey: "key-en-contexto" } as object) },
+    });
+
+    const text = await readFile(path.join(dir, "binance-calls-test.jsonl"), "utf8");
+    expect(text).not.toContain("token-filtrado");
+    expect(text).not.toContain("key-en-contexto");
+    const [entry] = await readLines();
+    expect(entry.response?.body).toEqual({ price: "1", accessToken: "[oculto]", nested: { apiKey: "[oculto]" } });
+    expect(entry.context).toEqual({ ticker: "NVDA", apiKey: "[oculto]" });
+  });
+
   it("guarda como texto una respuesta que no es JSON", async () => {
     const html = "<html><body>502 Bad Gateway</body></html>";
     stubFetch(new Response(html, { status: 502 }));

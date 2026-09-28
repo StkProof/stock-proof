@@ -71,7 +71,41 @@ function redactValue(value: unknown): unknown {
   );
 }
 
-/** Corta el texto a 20 KB. Si no se cortó y es JSON válido, lo devuelve como objeto. */
+/** Tiempo máximo esperando el cuerpo para el registro. Pasado eso, la línea queda sin cuerpo. */
+export const RESPONSE_READ_TIMEOUT_MS = 5_000;
+
+/**
+ * Lee del clon como máximo 20 KB y un byte, y cancela el resto: una respuesta enorme o que no
+ * termina no bloquea la puerta. Cancelar el clon no corta la respuesta original.
+ */
+export async function readForLog(response: Response): Promise<string> {
+  const body = response.clone().body;
+  if (body === null) return "";
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("el cuerpo tardó demasiado")), RESPONSE_READ_TIMEOUT_MS);
+  });
+  try {
+    while (size <= RESPONSE_LIMIT_BYTES) {
+      const { done, value } = await Promise.race([reader.read(), timeout]);
+      if (done) break;
+      chunks.push(value);
+      size += value.byteLength;
+    }
+  } finally {
+    clearTimeout(timer);
+    reader.cancel().catch(() => {});
+  }
+  return Buffer.concat(chunks).subarray(0, RESPONSE_LIMIT_BYTES + 1).toString("utf8");
+}
+
+/**
+ * Corta el texto a 20 KB. Si no se cortó y es JSON válido, lo devuelve como objeto, con los campos
+ * secretos ocultos igual que en `params`.
+ */
 export function truncateResponse(text: string): LoggedResponse {
   const bytes = Buffer.from(text, "utf8");
   if (bytes.length > RESPONSE_LIMIT_BYTES) {
@@ -80,7 +114,7 @@ export function truncateResponse(text: string): LoggedResponse {
     return { body: cut, truncated: true };
   }
   try {
-    return { body: JSON.parse(text), truncated: false };
+    return { body: redactValue(JSON.parse(text)), truncated: false };
   } catch {
     return { body: text, truncated: false };
   }
