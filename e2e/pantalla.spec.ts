@@ -20,7 +20,7 @@ async function evaluar(
     await page.getByLabel(/Dirección del contrato/).fill(direccion);
   }
   if (escena !== undefined) {
-    await page.getByLabel(/Escena del demo/).selectOption(escena);
+    await page.locator('select[name="escena"]').selectOption(escena);
   }
   await page.getByRole("button", { name: "Evaluar" }).click();
 }

@@ -1,31 +1,27 @@
-# Tarea: Pantalla única de StockProof (los seis estados)
+# Tarea: Conexión a datos reales (`/api/evaluate`)
 
 - Estado: en curso
-- Spec: specs/preguntas-1-y-2.md (Estado: aprobada) + contrato congelado en specs/formato-evaluacion.md (no se edita, es de otra tarea)
-- Issue: #8 · Rama: `feat/pantalla-estados`, sale de `feat/formato-evaluacion` para usar el tipo `Evaluation` y los seis ejemplos
-- Criterios de aceptación (de la spec de preguntas 1 y 2, más el alcance de la issue):
-  - [x] Formulario con ticker, monto en USD y dirección opcional de contrato a revisar; un selector de escena elige qué ejemplo de `lib/evaluation-examples.ts` muestra «Evaluar» (todavía no hay backend).
-  - [x] Las cuatro preguntas como filas con estado: verde pasó, rojo cortó, gris «sin dato» o no evaluada (e2e `e2e/pantalla.spec.ts`).
-  - [x] `cut` de la pregunta 1 muestra el motivo en castellano y la dirección si está; `cut` de la 2 muestra las tres cotizaciones con impacto y costo; `pass` muestra emisor ganador, costo, impacto, empate, bloque de salida en tres capas y botón de firma visible sin acción (e2e).
-  - [x] `invalid` pide corregir la entrada; `unavailable` dice qué pregunta no se pudo evaluar y por qué (e2e).
-  - [x] Todo `"unavailable"` del resultado se lee «sin dato»; ningún código crudo llega a la pantalla (unitario `tests/messages.test.ts` + e2e de la escena con «sin dato»).
-  - [x] `npm run check` en verde (lint, typecheck, 86 unitarios — 17 nuevos — y 7 e2e).
-- Plan:
-  1. Helpers de formato USD/porcentaje/fecha en `lib/format.ts` (funciones nuevas; `formatCurrency` ARS no se toca).
-  2. Textos de la pantalla en `components/messages.ts` (los códigos llegan de la lógica; el castellano es provisional hasta la issue #21).
-  3. `components/evaluation-result.tsx` renderiza `Evaluation` por `kind`; `components/stock-proof-screen.tsx` tiene el formulario y el selector de escena.
-  4. e2e nuevo `e2e/pantalla.spec.ts`; la spec `specs/example.md` queda marcada como reemplazada.
-  5. `npm run check`, resumen y pull request.
+- Spec: specs/conexion-datos.md (Estado: borrador — Agustín pidió implementar junto con la spec; la aprueba en el pull request)
+- Issues que cubre: #2 (cliente firmado), #7 (cotización pregunta 2), #9 (conectar a evaluate)
+- Rama: `feat/conexion-datos`, sobre `feat/pantalla-estados` (que ya trae el formato congelado y el merge de `feat/registro-llamadas` con `assertBinanceHost`)
+- Criterios de aceptación (de la spec):
+  - [x] `X-OC-SIGN` firma `timestamp + método + "/build" + path + "?" + query + cuerpo`; soporta HMAC (`BINANCE_API_SECRET`) y clave RSA/Ed25519 (`BINANCE_PRIVATE_KEY`) (unitario `tests/binance-sign.test.ts`, 7 tests).
+  - [x] Sin credenciales, `buildEvaluateInput` deja cotizaciones `"unavailable"` y la pregunta 1 decide con fuentes públicas (unitario `tests/evaluation-input.test.ts`).
+  - [x] Dirección impostora → `cut` de la pregunta 1 con `address`; verificado en vivo contra la lista pública de Binance (`0x…dead` → `CONTRACT_NOT_LISTED`; `NVDAB` real pasa la pregunta 1 con attestation y BEP-8056 por el RPC público).
+  - [x] `priceImpactPercent` se traduce a proporción y `simulatedCostUsd = monto × (1 + impacto)`; sin el campo es `"unavailable"` (unitario `tests/trading.test.ts`).
+  - [x] `reference`/`regime` reflejan `dynamic`/`status` públicos o quedan «sin dato» (unitario).
+  - [x] La pantalla tiene escena «En vivo» que llama a `POST /api/evaluate`; las seis escenas del demo siguen fijas (e2e).
+  - [x] `npm run check` en verde.
+- Plan: firmante → fuentes públicas → cotización firmada → orquestador → route → escena en vivo.
 - Decisiones:
-  - La pantalla consume `Evaluation` y no decide: el selector de escena elige qué resultado ya computado mostrar; la validación de entrada (`invalid` con ticker vacío o monto no positivo) es local, como pide la spec («no llama a las APIs»).
-  - El monto acepta coma decimal es-AR («200,50») normalizando a punto antes de validar.
-  - Componentes en `components/` (convención Next cuando `app/` solo tiene rutas); estilos con CSS module `stock-proof.module.css` (la plantilla no trae Tailwind).
-  - «Emisor» en la UI en vez de «wrapper» (menos jerga); los nombres bStocks/Ondo/xStocks se muestran tal cual.
-  - El botón de firma existe y está deshabilitado con nota: se ve y no envía, como fija la spec.
-  - `formatUsd`, `formatPercent`, `formatUtcDateTime` y `timeSince` van en `lib/format.ts` con unitario (la spec de formato deja `formatCurrency` en USD explícitamente fuera, así que el helper es propio y ARS queda igual).
+  - `checkContract` sigue igual; la inyección va por `checkContractSources`/`Q1Sources` y `publicQ1Sources`/`signedQ1Sources` comparten `decideAuthenticity`.
+  - El `type` de la lista pública mapea 1→Ondo, 2→xStocks, 3→bStocks; xStocks sigue sin lista oficial en RWA Data (ADR 0002) aunque el endpoint la traiga.
+  - La cotización exige las tres rutas (spec congelada): un emisor sin contrato o sin quote deja el conjunto «sin dato».
+  - `exit` queda `"unavailable"`; la simulación de venta es la tarea siguiente con la Transaction API.
 - Bloqueos:
-  - Las APIs de Binance no están: la pantalla trabaja contra `evaluationExamples`. El campo de dirección y el selector de escena son puentes del demo hasta la integración.
-- Último resumen: `/` es la pantalla de StockProof. `components/stock-proof-screen.tsx` tiene el formulario (ticker, monto USD, dirección opcional) y un selector de escena que elige qué ejemplo de `lib/evaluation-examples.ts` muestra «Evaluar»; la entrada inválida se pide corregir en local sin llamar a nada. `components/evaluation-result.tsx` dibuja cada `kind` de `Evaluation`: las cuatro preguntas con estado, los motivos en castellano (`components/messages.ts`, provisionales hasta la issue #21), la tabla de cotizaciones, el detalle de referencia/régimen y el bloque de salida en tres capas con «sin dato» donde el dato no llegó. `lib/format.ts` suma `formatUsd`, `formatPercent`, `formatUtcDateTime` y `timeSince` (ARS intacto). `e2e/pantalla.spec.ts` reemplaza al de la plantilla y recorre los seis estados; `specs/example.md` quedó marcada como reemplazada. Además esta rama incorporó el merge de `feat/registro-llamadas` (`28c6baa`): la puerta conserva la lectura acotada del cuerpo y la redacción por nombre en `context` de esta rama, y suma la lista de hosts permitidos (`assertBinanceHost`) y el tapado de secretos por valor en la respuesta (`scrubSecrets`). `npm run check` en verde.
+  - `BINANCE_API_KEY` + `BINANCE_API_SECRET` (o `BINANCE_PRIVATE_KEY`) no están en `.env`: las cotizaciones (pregunta 2) quedan «sin dato» hasta que la credencial llegue.
+  - `STOCKPROOF_CALLER` sin definir: las llamadas reales se anotan como `desconocido`.
+- Último resumen: `POST /api/evaluate` ya evalúa en vivo. `lib/binance/sign.ts` firma X-OC-* (HMAC o RSA/Ed25519 con autodetección, payload = timestamp+método+/build+path+query+cuerpo compacto, verificado contra el SDK oficial). `lib/binance/rwa-public.ts` trae lista oficial, metadata con attestation, dinámica (precio token/acción, multiplicador, estado) y estado de mercado sin credenciales. `lib/binance/trading.ts` cotiza `/api/v1/dex/aggregator/quote` firmado con mejor-impacto-entre-vendors. `lib/evaluation-input.ts` arma el `EvaluateInput`: ticker→contratos por la lista, pregunta 1 por contrato (firmada si hay key, pública si no), tres cotizaciones o «sin dato», reference del token bStocks (o el primero listado) y régimen del estado global. `app/api/evaluate/route.ts` expone POST (runtime nodejs). La pantalla suma la escena «En vivo». `npm run check` en verde: lint, typecheck, 117 unitarios (25 nuevos) y 7 e2e. Verificación en vivo real: impostor → corte q1; NVDAB real → pasa q1 y queda en «sin cotización» (falta la key).
 
 ## Revisión
 

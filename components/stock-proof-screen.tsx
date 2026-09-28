@@ -31,23 +31,49 @@ const SCENES: { key: SceneKey; label: string }[] = [
   { key: "invalid", label: "Entrada inválida" },
 ];
 
-export function StockProofScreen() {
-  const [scene, setScene] = useState<SceneKey>("pass");
-  const [result, setResult] = useState<Evaluation | null>(null);
+/** Escena extra: llama a `POST /api/evaluate` con los datos del formulario. */
+const LIVE = "live";
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
+export function StockProofScreen() {
+  const [scene, setScene] = useState<SceneKey | typeof LIVE>("pass");
+  const [result, setResult] = useState<Evaluation | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const ticker = String(data.get("ticker") ?? "");
     // El monto puede venir con coma decimal (es-AR): «200,50».
     const amountUsd = Number(String(data.get("monto") ?? "").replace(",", "."));
+    const address = String(data.get("direccion") ?? "").trim();
 
     // Entrada inválida: la pantalla pide corregir sin llamar a nada (spec).
-    const evaluation =
-      ticker.trim().length === 0 || !Number.isFinite(amountUsd) || amountUsd <= 0
-        ? evaluationExamples.invalid
-        : evaluationExamples[scene];
-    setResult(evaluation);
+    if (ticker.trim().length === 0 || !Number.isFinite(amountUsd) || amountUsd <= 0) {
+      setResult(evaluationExamples.invalid);
+      return;
+    }
+    if (scene !== LIVE) {
+      setResult(evaluationExamples[scene]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ticker: ticker.trim(),
+          amountUsd,
+          ...(address.length > 0 ? { address } : {}),
+        }),
+      });
+      setResult((await response.json()) as Evaluation);
+    } catch {
+      setResult({ kind: "unavailable", question: 1, reason: "LIST_UNAVAILABLE" });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -90,22 +116,23 @@ export function StockProofScreen() {
             />
           </label>
           <label className={styles.field}>
-            Escena del demo (todavía sin backend)
+            Escena
             <select
               name="escena"
               value={scene}
-              onChange={(event) => setScene(event.target.value as SceneKey)}
+              onChange={(event) => setScene(event.target.value as SceneKey | typeof LIVE)}
             >
+              <option value={LIVE}>En vivo (consulta a Binance)</option>
               {SCENES.map(({ key, label }) => (
                 <option key={key} value={key}>
-                  {label}
+                  Demo: {label}
                 </option>
               ))}
             </select>
           </label>
         </div>
-        <button type="submit" className={styles.submit}>
-          Evaluar
+        <button type="submit" className={styles.submit} disabled={loading}>
+          {loading ? "Evaluando…" : "Evaluar"}
         </button>
       </form>
 
