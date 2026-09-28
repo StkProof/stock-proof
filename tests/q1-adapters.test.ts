@@ -37,7 +37,7 @@ type Route = { match: string; reply: () => Response | Error };
 
 /** `fetch` doble: responde según el primer `match` contenido en la URL. Anota cada URL pedida. */
 function stubFetch(routes: Route[]) {
-  const fake = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
+  const fake = vi.fn<typeof fetch>(async (input) => {
     const url = String(input);
     const route = routes.find((candidate) => url.includes(candidate.match));
     if (route === undefined) throw new Error(`el doble de fetch no conoce ${url}`);
@@ -175,6 +175,20 @@ describe("getUnderlyingProfile", () => {
   it("devuelve una lista vacía si el perfil no trae protections", async () => {
     stubFetch([{ match: "underlying-profile", reply: json({ code: 0, data: { platformId: "bstock" } }) }]);
     expect(await getUnderlyingProfile("56", BSTOCK, deps)).toEqual({ attestations: [] });
+  });
+
+  it("devuelve unavailable si protections o un reporte no tienen la forma esperada", async () => {
+    const shapes = [
+      [],
+      "error",
+      { dailyAttestationReport: "sí" },
+      { dailyAttestationReport: { supported: "true", url: null } },
+      { dailyAttestationReport: { supported: true, url: null }, monthlyAttestationReport: null },
+    ];
+    for (const protections of shapes) {
+      stubFetch([{ match: "underlying-profile", reply: json({ code: 0, data: { protections } }) }]);
+      expect(await getUnderlyingProfile("56", BSTOCK, deps)).toBe("unavailable");
+    }
   });
 
   it("devuelve unavailable con data null, error HTTP, code distinto de 0 o falla de red", async () => {

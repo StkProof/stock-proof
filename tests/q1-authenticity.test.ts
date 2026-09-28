@@ -50,10 +50,10 @@ describe("decideAuthenticity", () => {
 
   it("pasa con un Ondo oficial con attestation, sin BEP-8056", () => {
     expect(
-      decideAuthenticity(data({ wrapper: "ondo", address: ONDO, standard: null })),
+      decideAuthenticity(data({ ticker: "QQQ", wrapper: "ondo", address: ONDO, standard: null })),
     ).toEqual({ ok: true });
     expect(
-      decideAuthenticity(data({ wrapper: "ondo", address: ONDO, standard: false })),
+      decideAuthenticity(data({ ticker: "QQQ", wrapper: "ondo", address: ONDO, standard: false })),
     ).toEqual({ ok: true });
   });
 
@@ -104,11 +104,24 @@ describe("decideAuthenticity", () => {
   });
 
   it("corta con CONTRACT_NOT_LISTED si la dirección es la oficial de otro wrapper", () => {
-    expect(decideAuthenticity(data({ wrapper: "bstocks", address: ONDO }))).toMatchObject({
+    expect(decideAuthenticity(data({ ticker: "QQQ", wrapper: "bstocks", address: ONDO }))).toMatchObject({
       reason: "CONTRACT_NOT_LISTED",
     });
-    expect(decideAuthenticity(data({ wrapper: "ondo", address: BSTOCK }))).toMatchObject({
+    expect(decideAuthenticity(data({ ticker: "QQQ", wrapper: "ondo", address: BSTOCK }))).toMatchObject({
       reason: "CONTRACT_NOT_LISTED",
+    });
+  });
+
+  it("por símbolo solo cuenta ese token: QQQB no aprueba la dirección de QQQon", () => {
+    expect(decideAuthenticity(data({ ticker: "QQQB", wrapper: "ondo", address: ONDO }))).toEqual({
+      ok: false,
+      reason: "CONTRACT_NOT_LISTED",
+    });
+    expect(decideAuthenticity(data({ ticker: "QQQon", wrapper: "ondo", address: ONDO }))).toEqual({
+      ok: true,
+    });
+    expect(decideAuthenticity(data({ ticker: "QQQ", wrapper: "ondo", address: ONDO }))).toEqual({
+      ok: true,
     });
   });
 

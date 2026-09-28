@@ -55,7 +55,7 @@ La firma de las llamadas (`X-OC-SIGN`) es del cliente de Agustín (issue #2). `r
 - [ ] Ondo oficial con attestation y sin BEP-8056 → `{ ok: true }` (unitario).
 - [ ] Ticker sin tokens en la chain 56 → `TICKER_NOT_FOUND` (unitario).
 - [ ] Dirección que no es la oficial, incluida una que copia los primeros y últimos caracteres → `CONTRACT_NOT_LISTED`. La comparación es de la dirección completa, sin distinguir mayúsculas (unitario).
-- [ ] Dirección oficial en otra chain, o de otro wrapper → `CONTRACT_NOT_LISTED` (unitario).
+- [ ] Dirección oficial en otra chain, o de otro wrapper, o de otro símbolo del mismo subyacente cuando el ticker es un símbolo → `CONTRACT_NOT_LISTED` (unitario).
 - [ ] Oficial sin ninguna `protection` en `supported: true` → `ATTESTATION_MISSING` (unitario).
 - [ ] bStock oficial que responde `false` a `supportsInterface` → `STANDARD_NOT_BEP8056` (unitario).
 - [ ] Si la lista corta, el resultado no depende de la attestation ni del estándar, y `checkContract` no los consulta (unitario sobre la decisión y sobre el orquestador con dobles).
@@ -71,11 +71,12 @@ La firma de las llamadas (`X-OC-SIGN`) es del cliente de Agustín (issue #2). `r
 ## Casos borde
 
 - Ticker con espacios o en minúsculas: se recorta y se compara sin distinguir mayúsculas.
-- El ticker se puede escribir como el subyacente (`QQQ`) o como el símbolo del token (`QQQB`): cualquiera de los dos encuentra el resultado.
+- El ticker se puede escribir como el subyacente (`QQQ`) o como el símbolo del token (`QQQB`). Por el subyacente cuentan todos sus tokens; por el símbolo, solo ese token: `QQQB` con wrapper `ondo` y la dirección de `QQQon` es `CONTRACT_NOT_LISTED`.
 - La búsqueda devuelve otros tickers parecidos (`QQQ` y `QQQM`): solo cuentan los que coinciden exacto.
 - Dirección con formato inválido (no es `0x` + 40 hex): `CONTRACT_NOT_LISTED`. No se llama a BSC.
 - Un contrato común (BEP-20 sin ERC-165) suele hacer revert en `supportsInterface`: eso es «no cumple», no «no disponible».
-- `protections` vacío o ausente en un perfil que respondió bien: `ATTESTATION_MISSING`.
+- `protections` ausente o como objeto vacío en un perfil que respondió bien: `ATTESTATION_MISSING`.
+- `protections` con otro tipo (lista, texto) o un reporte sin `supported` booleano: `ATTESTATION_UNAVAILABLE` (la forma no se entiende, no se puede afirmar que falta).
 - `underlying-profile` con `data: null`: `ATTESTATION_UNAVAILABLE` (no se sabe, no se pasa).
 
 ## Fuera de alcance

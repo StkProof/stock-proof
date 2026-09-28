@@ -77,14 +77,19 @@ export async function getUnderlyingProfile(
   );
   if (data === UNAVAILABLE || !isRecord(data)) return "unavailable";
 
-  const protections = isRecord(data.protections) ? data.protections : {};
-  const attestations = Object.entries(protections)
-    .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
-    .map(([name, report]) => ({
+  // Sin `protections` son cero reportes. Con otra forma no se entiende: no se puede afirmar que falta.
+  if (data.protections === undefined || data.protections === null) return { attestations: [] };
+  if (!isRecord(data.protections)) return "unavailable";
+
+  const attestations: AttestationReport[] = [];
+  for (const [name, report] of Object.entries(data.protections)) {
+    if (!isRecord(report) || typeof report.supported !== "boolean") return "unavailable";
+    attestations.push({
       name,
-      supported: report.supported === true,
+      supported: report.supported,
       url: typeof report.url === "string" ? report.url : null,
-    }));
+    });
+  }
   return { attestations };
 }
 

@@ -64,14 +64,14 @@ export function checkListing(
     return { ok: false, reason: "LIST_UNAVAILABLE" };
   }
 
+  // Por el subyacente (`QQQ`) cuentan todos sus tokens; por el símbolo (`QQQB`), solo ese token.
   const ticker = normalize(target.ticker);
   const onBsc = search
-    .filter(
-      (result) =>
-        normalize(result.ticker) === ticker ||
-        result.assets.some((asset) => normalize(asset.tokenSymbol) === ticker),
+    .flatMap((result) =>
+      normalize(result.ticker) === ticker
+        ? result.assets
+        : result.assets.filter((asset) => normalize(asset.tokenSymbol) === ticker),
     )
-    .flatMap((result) => result.assets)
     .filter((asset) => asset.binanceChainId === BSC_CHAIN_ID);
   if (onBsc.length === 0) {
     return { ok: false, reason: "TICKER_NOT_FOUND" };
