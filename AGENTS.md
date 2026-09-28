@@ -1,17 +1,17 @@
 # AGENTS.md (proyecto: StockProof)
 
-Repo de **StockProof**, el producto de la hackathon BNB Hack: Tokenized Stocks. El contexto de producto vive en el vault de este workspace (`../vault/`), no se duplica acá.
+Repo de **StockProof**, el producto de la hackathon BNB Hack: Tokenized Stocks. El contexto de producto vive en el vault de este workspace (`../stockproof-vault/`), no se duplica acá.
 
 ## Contexto de producto
 
 Leer en este orden, antes de cambiar comportamiento:
 
-1. `../vault/Índice.md`
-2. `../vault/Idea.md` — las cuatro preguntas y el corte.
-3. `../vault/MVP.md` — qué entra en cada ventana.
-4. `../vault/Brief.md` — fechas, stack de APIs y restricciones.
-5. `../vault/Alineamiento.md` y `../vault/Dolores.md` — por qué se construye esto.
-6. `../vault/Fuentes.md` — de dónde salen los números. Si una cifra no está ahí, no entra.
+1. `../stockproof-vault/Índice.md`
+2. `../stockproof-vault/Idea.md` — las cuatro preguntas y el corte.
+3. `../stockproof-vault/MVP.md` — qué entra en cada ventana.
+4. `../stockproof-vault/Brief.md` — fechas, stack de APIs y restricciones.
+5. `../stockproof-vault/Alineamiento.md` y `../stockproof-vault/Dolores.md` — por qué se construye esto.
+6. `../stockproof-vault/Fuentes.md` — de dónde salen los números. Si una cifra no está ahí, no entra.
 
 ## Stack
 
