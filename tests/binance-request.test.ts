@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { newEvaluationId, type CallLogEntry } from "@/lib/binance/call-log";
+import { newEvaluationId, redactParams, type CallLogEntry } from "@/lib/binance/call-log";
 import { binanceRequest } from "@/lib/binance/request";
 
 const URL_QUOTE = "https://api.binance.test/sapi/v1/rwa/quote?symbol=NVDA";
@@ -149,6 +149,26 @@ describe("binanceRequest", () => {
       signature: "[oculto]",
       apiKey: "[oculto]",
       nested: { apiSecret: "[oculto]" },
+    });
+  });
+
+  it("oculta por el final del nombre: anota keyword y tokenContractAddress, oculta api_key, X-OC-SIGN y accessToken", () => {
+    expect(
+      redactParams({
+        keyword: "QQQ",
+        tokenContractAddress: "0xabc",
+        api_key: "k",
+        "X-OC-SIGN": "s",
+        accessToken: "t",
+        password: "p",
+      }),
+    ).toEqual({
+      keyword: "QQQ",
+      tokenContractAddress: "0xabc",
+      api_key: "[oculto]",
+      "X-OC-SIGN": "[oculto]",
+      accessToken: "[oculto]",
+      password: "[oculto]",
     });
   });
 

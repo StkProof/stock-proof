@@ -141,7 +141,7 @@ Crear `lib/binance/call-log.ts` con:
   - `BinanceApi = "rwa" | "trading" | "transaction" | "market" | "wallet"`.
   - `CallContext = { ticker?: string; amountUsd?: number; side?: "buy" | "sell"; wrapper?: WrapperId; purpose?: string; evaluationId?: string; referencePriceAt?: string; txHash?: string }`. Importar `WrapperId` de `lib/evaluate.ts`; no redefinirlo.
   - `CallLogEntry` con exactamente los campos de la tabla «Qué anota cada línea».
-- `redactParams(params)`: devuelve una copia donde todo campo cuyo nombre contenga `key`, `secret`, `signature`, `token` o `password` (sin distinguir mayúsculas) vale `"[oculto]"`. Recorre objetos anidados. No modifica el original.
+- `redactParams(params)`: devuelve una copia donde todo campo cuyo nombre termine en `key`, `secret`, `sign`, `signature`, `token` o `password` (sin distinguir mayúsculas) vale `"[oculto]"`. Se mira el final del nombre: `keyword` y `tokenContractAddress` se anotan. Recorre objetos anidados. No modifica el original.
 - `truncateResponse(body)`: si el texto pasa los 20 KB (20 × 1024 bytes en UTF-8), lo corta y devuelve `{ body, truncated: true }`. Si no, `{ body, truncated: false }`. Si el texto es JSON válido y no se cortó, guardarlo como objeto; si no, como texto.
 - `newEvaluationId()`: devuelve `crypto.randomUUID()` (de `node:crypto`). Sin dependencias nuevas.
 - `resolveCaller()` y `resolveEnv()`: leen `STOCKPROOF_CALLER` y `STOCKPROOF_ENV`. Si faltan o están vacíos, devuelven `"desconocido"`.

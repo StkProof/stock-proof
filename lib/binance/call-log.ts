@@ -10,8 +10,12 @@ export const HIDDEN = "[oculto]";
 
 const UNKNOWN = "desconocido";
 
-/** Campos de `params` que nunca se anotan: se busca el texto dentro del nombre, sin distinguir mayúsculas. */
-const SECRET_NAME = /key|secret|signature|token|password/i;
+/**
+ * Campos de `params` que nunca se anotan: el nombre termina en key, secret, sign, signature, token
+ * o password, sin distinguir mayúsculas (`apiKey`, `X-OC-SIGN`, `accessToken`). Se mira el final y
+ * no el texto suelto para no ocultar `keyword` ni `tokenContractAddress`, que el informe necesita.
+ */
+const SECRET_NAME = /(key|secret|sign|signature|token|password)$/i;
 
 export type BinanceApi = "rwa" | "trading" | "transaction" | "market" | "wallet";
 
