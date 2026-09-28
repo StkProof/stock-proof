@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Plantilla Harness",
-  description: "Proyecto Next.js mínimo compatible con el harness de IA",
+  title: "StockProof",
+  description:
+    "Cuatro preguntas antes de firmar el swap de una acción tokenizada en BSC",
 };
 
 export default function RootLayout({

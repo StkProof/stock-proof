@@ -1,6 +1,6 @@
 # Spec: home de la plantilla
 
-- **Estado**: aprobada
+- **Estado**: reemplazada (28 sep 2026). La pantalla de StockProof ocupó `/` en la rama `feat/pantalla-estados` (issue #8): el título «Plantilla Harness», el precio de ejemplo y el e2e `e2e/home.spec.ts` ya no existen. Sigue vigente solo el contrato de `formatCurrency` (ARS), cubierto por `tests/format.test.ts`.
 - **Fecha**: 2026-09-27
 - **Autor**: harness (spec de ejemplo de la plantilla)
 
