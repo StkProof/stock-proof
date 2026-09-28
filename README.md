@@ -2,7 +2,7 @@
 
 **StockProof**: dado un ticker y un monto, responde cuatro preguntas antes de firmar el swap de una acción tokenizada en BSC.
 
-El porqué, el corte y el calendario están en el vault de este workspace (`../stockproof-vault/`). Este README solo dice cómo correr el código.
+El porqué, el corte y el calendario están en el vault de este workspace (`../vault-stockproof/`). Este README solo dice cómo correr el código.
 
 ## Primera vez
 

@@ -1,8 +1,11 @@
 node_modules/
 .next/
 out/
+test-results/
+playwright-report/
+blob-report/
+coverage/
 .env
 .env*.local
-playwright-report/
-test-results/
+.DS_Store
 *.tsbuildinfo
