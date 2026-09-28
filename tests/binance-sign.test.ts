@@ -97,6 +97,53 @@ describe("binanceCredentials", () => {
       passphrase: undefined,
     });
   });
+
+  it("acepta los alias del portal: API_KEY con SECRET_KEY o API_SECRET", () => {
+    expect(binanceCredentials({ API_KEY: API_KEY, SECRET_KEY: SECRET })).toEqual({
+      kind: "hmac",
+      apiKey: API_KEY,
+      secret: SECRET,
+    });
+    expect(binanceCredentials({ API_KEY: API_KEY, API_SECRET: SECRET })).toEqual({
+      kind: "hmac",
+      apiKey: API_KEY,
+      secret: SECRET,
+    });
+  });
+
+  it("BINANCE_API_KEY tiene prioridad sobre el alias API_KEY", () => {
+    expect(
+      binanceCredentials({
+        BINANCE_API_KEY: "key-canonica",
+        API_KEY: API_KEY,
+        BINANCE_API_SECRET: SECRET,
+      }),
+    ).toEqual({ kind: "hmac", apiKey: "key-canonica", secret: SECRET });
+  });
+
+  it("BINANCE_API_SECRET tiene prioridad sobre SECRET_KEY y API_SECRET", () => {
+    expect(
+      binanceCredentials({
+        BINANCE_API_KEY: API_KEY,
+        BINANCE_API_SECRET: SECRET,
+        SECRET_KEY: "secreto-alias",
+        API_SECRET: "otro-secreto-alias",
+      }),
+    ).toEqual({ kind: "hmac", apiKey: API_KEY, secret: SECRET });
+  });
+
+  it("devuelve null si solo hay alias de key y ninguna forma de firma", () => {
+    expect(binanceCredentials({ API_KEY: API_KEY })).toBeNull();
+  });
+
+  it("un canónico vacío o de solo espacios no pisa al alias válido", () => {
+    expect(
+      binanceCredentials({ BINANCE_API_KEY: "   ", API_KEY: API_KEY, SECRET_KEY: SECRET }),
+    ).toEqual({ kind: "hmac", apiKey: API_KEY, secret: SECRET });
+    expect(
+      binanceCredentials({ BINANCE_API_KEY: API_KEY, BINANCE_API_SECRET: "", API_SECRET: SECRET }),
+    ).toEqual({ kind: "hmac", apiKey: API_KEY, secret: SECRET });
+  });
 });
 
 describe("binanceWeb3Signer", () => {

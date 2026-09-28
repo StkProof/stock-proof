@@ -23,9 +23,11 @@ export type BinanceCredentials =
 export function binanceCredentials(
   env: Record<string, string | undefined> = process.env,
 ): BinanceCredentials | null {
-  const apiKey = env.BINANCE_API_KEY?.trim();
+  // Nombres canónicos (`.env.example`) con prioridad; los alias del portal
+  // (`API_KEY`/`SECRET_KEY`/`API_SECRET`) valen cuando el canónico falta o está vacío.
+  const apiKey = firstNonEmpty(env.BINANCE_API_KEY, env.API_KEY);
   if (!apiKey) return null;
-  const secret = env.BINANCE_API_SECRET?.trim();
+  const secret = firstNonEmpty(env.BINANCE_API_SECRET, env.SECRET_KEY, env.API_SECRET);
   if (secret) return { kind: "hmac", apiKey, secret };
   const privateKey = env.BINANCE_PRIVATE_KEY?.trim();
   if (privateKey) {
@@ -110,4 +112,13 @@ function readPem(input: string): string {
   } catch {
     return input;
   }
+}
+
+/** El primer valor no vacío ya recortado, en orden de prioridad. `undefined` si ninguno trae algo. */
+function firstNonEmpty(...values: (string | undefined)[]): string | undefined {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
 }
