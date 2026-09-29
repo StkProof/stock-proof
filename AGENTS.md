@@ -34,6 +34,14 @@ Next.js 15 + React 19 + TypeScript, copiado de la plantilla Next.js de `agent-ha
 - Si un comportamiento cambia, actualizar su spec en el mismo cambio.
 - Restricciones del brief que no se negocian en código: solo spot, solo BSC mainnet, al menos uno de bStocks / Ondo / xStocks. La demo firma con unos pocos dólares propios; hasta esa tarea, simular con la Transaction API.
 
+## Forma de trabajo en git
+
+- `main` está protegido: no se pushea directo ni se fuerza. Todo entra por pull request con 1 aprobación y el check `check` (CI) en verde.
+- Una rama corta por tarea del tablero, desde `main` actualizado: `tipo/descripcion-corta` (`feat/`, `fix/`, `docs/`, `chore/`, `test/`).
+- Pull requests chicos, unidos el mismo día o el siguiente. Una rama que vive más de dos días es la que termina en conflicto.
+- Se une solo con squash; la rama se borra sola al unir.
+- El pull request dice qué tarea del tablero cierra (`Closes #N`) y su spec, si la tiene.
+
 ## Dónde trabaja cada parte
 
 - **Lógica**: `lib/evaluate.ts`. La decisión de las preguntas 1 y 2. Los tests están en `tests/evaluate.test.ts`.
