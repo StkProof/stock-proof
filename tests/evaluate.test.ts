@@ -4,6 +4,7 @@ import {
   IMPACT_LIMIT,
   type Evaluation,
   type Quote,
+  type QuoteGap,
 } from "@/lib/evaluate";
 import { evaluationExamples } from "@/lib/evaluation-examples";
 import type { Q1Result } from "@/lib/questions/q1-reasons";
@@ -225,23 +226,82 @@ describe("evaluate", () => {
     ).toMatchObject({ kind: "pass", wrapper: "ondo", tied: true });
   });
 
+  it("decide con un conjunto parcial de cotizaciones y propaga quoteGaps", () => {
+    const gaps: QuoteGap[] = [{ wrapper: "xstocks", reason: "NO_QUOTE" }];
+    const parciales = quotes(0.002, 0.006, 0.001).filter((q) => q.wrapper !== "xstocks");
+    const result = evaluate({
+      ticker: "NVDA",
+      amountUsd: 200,
+      quotes: parciales,
+      quoteGaps: gaps,
+    });
+
+    passOrFail(result);
+    expect(result.wrapper).toBe("bstocks");
+    expect(result.quotes.map((q) => q.wrapper)).toEqual(["bstocks", "ondo"]);
+    expect(result.quoteGaps).toEqual(gaps);
+  });
+
+  it("una sola cotización válida alcanza para decidir", () => {
+    const result = evaluate({
+      ticker: "NVDA",
+      amountUsd: 200,
+      quotes: quotes(0.002, 0.006, 0.001).filter((q) => q.wrapper === "ondo"),
+    });
+
+    passOrFail(result);
+    expect(result.wrapper).toBe("ondo");
+    expect(result.tied).toBe(false);
+  });
+
+  it("propaga quoteGaps al cut de la pregunta 2 y al «sin dato» de cero cotizaciones", () => {
+    const gaps: QuoteGap[] = [{ wrapper: "xstocks", reason: "NO_QUOTE" }];
+    const cut = evaluate({
+      ticker: "NVDA",
+      amountUsd: 10_000,
+      quotes: quotes(0.018, 0.063, 0.02).filter((q) => q.wrapper !== "xstocks"),
+      quoteGaps: gaps,
+    });
+    expect(cut).toMatchObject({
+      kind: "cut",
+      question: 2,
+      reason: "IMPACT_OVER_LIMIT",
+      quoteGaps: gaps,
+    });
+
+    const todosLosGaps: QuoteGap[] = [
+      { wrapper: "bstocks", reason: "NO_QUOTE" },
+      { wrapper: "ondo", reason: "NOT_LISTED" },
+      { wrapper: "xstocks", reason: "NO_QUOTE" },
+    ];
+    expect(
+      evaluate({ ticker: "NVDA", amountUsd: 200, quotes: "unavailable", quoteGaps: todosLosGaps }),
+    ).toEqual({
+      kind: "unavailable",
+      question: 2,
+      reason: "QUOTES_UNAVAILABLE",
+      quoteGaps: todosLosGaps,
+    });
+  });
+
   it("no inventa un precio si las cotizaciones no sirven", () => {
     expect(
       evaluate({ ticker: "NVDA", amountUsd: 200, quotes: "unavailable" }),
     ).toEqual({ kind: "unavailable", question: 2, reason: "QUOTES_UNAVAILABLE" });
 
-    expect(
-      evaluate({
-        ticker: "NVDA",
-        amountUsd: 200,
-        quotes: quotes(0.001, 0.001, 0.001).slice(0, 2),
-      }).kind,
-    ).toBe("unavailable");
+    // Cero válidas, duplicadas o malformadas: sigue «sin dato», nunca un número inventado.
+    expect(evaluate({ ticker: "NVDA", amountUsd: 200, quotes: [] }).kind).toBe("unavailable");
 
     const broken = quotes(0.001, 0.001, 0.001);
     broken[0] = { ...broken[0], impactRatio: Number.NaN };
     expect(
       evaluate({ ticker: "NVDA", amountUsd: 200, quotes: broken }).kind,
+    ).toBe("unavailable");
+
+    const duplicadas = quotes(0.001, 0.001, 0.001);
+    duplicadas[0] = { ...duplicadas[0], wrapper: "ondo" };
+    expect(
+      evaluate({ ticker: "NVDA", amountUsd: 200, quotes: duplicadas }).kind,
     ).toBe("unavailable");
   });
 

@@ -1,34 +1,54 @@
-# Tarea: Conexión a datos reales (`/api/evaluate`)
+# Tarea: Cotizaciones reales — wallet del agente, monto en wei, conjunto parcial
 
 - Estado: en curso
-- Spec: specs/conexion-datos.md (Estado: borrador — Agustín pidió implementar junto con la spec; la aprueba en el pull request)
-- Issues que cubre: #2 (cliente firmado), #7 (cotización pregunta 2), #9 (conectar a evaluate)
-- Rama: `feat/conexion-datos`, sobre `feat/pantalla-estados` (que ya trae el formato congelado y el merge de `feat/registro-llamadas` con `assertBinanceHost`)
+- Spec: specs/cotizaciones-parciales.md (Estado: borrador — Agustín decidió las dos cosas que fija en la misma sesión, 28 sep 2026; aprueba en el pull request)
+- Issues que cubre: #7 (cotización pregunta 2)
+- Rama: `feat/cotizaciones-parciales`, sobre `main`
 - Criterios de aceptación (de la spec):
-  - [x] `X-OC-SIGN` firma `timestamp + método + "/build" + path + "?" + query + cuerpo`; soporta HMAC (`BINANCE_API_SECRET`) y clave RSA/Ed25519 (`BINANCE_PRIVATE_KEY`) (unitario `tests/binance-sign.test.ts`, 12 tests).
-  - [x] Sin credenciales, `buildEvaluateInput` deja cotizaciones `"unavailable"` y la pregunta 1 decide con fuentes públicas (unitario `tests/evaluation-input.test.ts`).
-  - [x] Dirección impostora → `cut` de la pregunta 1 con `address`; verificado en vivo contra la lista pública de Binance (`0x…dead` → `CONTRACT_NOT_LISTED`; `NVDAB` real pasa la pregunta 1 con attestation y BEP-8056 por el RPC público).
-  - [x] `priceImpactPercent` se traduce a proporción y `simulatedCostUsd = monto × (1 + impacto)`; sin el campo es `"unavailable"` (unitario `tests/trading.test.ts`).
-  - [x] `reference`/`regime` reflejan `dynamic`/`status` públicos o quedan «sin dato» (unitario).
-  - [x] La pantalla tiene escena «En vivo» que llama a `POST /api/evaluate`; las seis escenas del demo siguen fijas (e2e).
-  - [x] `npm run check` en verde.
-- Plan: firmante → fuentes públicas → cotización firmada → orquestador → route → escena en vivo.
-- Decisiones:
-  - `checkContract` sigue igual; la inyección va por `checkContractSources`/`Q1Sources` y `publicQ1Sources`/`signedQ1Sources` comparten `decideAuthenticity`.
-  - El `type` de la lista pública mapea 1→Ondo, 2→xStocks, 3→bStocks; xStocks sigue sin lista oficial en RWA Data (ADR 0002) aunque el endpoint la traiga.
-  - La cotización exige las tres rutas (spec congelada): un emisor sin contrato o sin quote deja el conjunto «sin dato».
-  - `exit` queda `"unavailable"`; la simulación de venta es la tarea siguiente con la Transaction API.
-  - `binanceCredentials` acepta los alias del portal `API_KEY`/`SECRET_KEY`/`API_SECRET`, pero solo si el nombre canónico `BINANCE_*` falta o está vacío: gana el primer valor no vacío ya recortado.
-- Bloqueos:
-  - La firma ya puede salir con los alias del portal; en la verificación real Binance no devolvió quote usable: Ondo/xStocks piden `userWalletAddress` y bStocks respondió `40374` por liquidez con 200 USD. Las cotizaciones quedan «sin dato» hasta definir `userWalletAddress`/monto o confirmar el endpoint.
-  - `STOCKPROOF_CALLER` sin definir: las llamadas reales se anotan como `desconocido`.
-- Último resumen: `POST /api/evaluate` ya evalúa en vivo. `lib/binance/sign.ts` firma X-OC-* (HMAC o RSA/Ed25519 con autodetección, payload = timestamp+método+/build+path+query+cuerpo compacto, verificado contra el SDK oficial); `binanceCredentials` acepta además los alias del portal `API_KEY`/`SECRET_KEY`/`API_SECRET` cuando el nombre `BINANCE_*` falta o está vacío. `lib/binance/rwa-public.ts` trae lista oficial, metadata con attestation, dinámica (precio token/acción, multiplicador, estado) y estado de mercado sin credenciales. `lib/binance/trading.ts` cotiza `/api/v1/dex/aggregator/quote` firmado con mejor-impacto-entre-vendors. `lib/evaluation-input.ts` arma el `EvaluateInput`: ticker→contratos por la lista, pregunta 1 por contrato (firmada si hay key, pública si no), tres cotizaciones o «sin dato», reference del token bStocks (o el primero listado) y régimen del estado global. `app/api/evaluate/route.ts` expone POST (runtime nodejs). La pantalla suma la escena «En vivo». `npm run check` en verde: lint, typecheck, 122 unitarios (30 nuevos) y 7 e2e. Verificación en vivo real: impostor → corte q1; NVDAB real → pasa q1 y queda en «sin cotización» porque Binance no devolvió quote usable (`userWalletAddress` requerido / liquidez insuficiente).
+  - [ ] `getAggregatedQuote` manda `userWalletAddress` cuando viene `walletAddress` y la firma cubre el query completo (unitario).
+  - [ ] `amountUsd` entra al quote en unidades mínimas del token de pago, exacto y sin floats (`200` → `200e18`; `5.5` → `5.5e18`).
+  - [ ] Con dos cotizaciones y una que falla, `buildEvaluateInput` devuelve las dos `quotes` y un `quoteGap` con su `reason` (unitario).
+  - [ ] `evaluate` decide `pass`/`cut` con subconjunto de cotizaciones; con cero devuelve `unavailable` `QUOTES_UNAVAILABLE`; `quoteGaps` llega al resultado (unitario).
+  - [ ] Wrapper sin contrato listado → `NOT_LISTED` sin llamar al quote; listado sin quote → `NO_QUOTE` (unitario).
+  - [ ] `npm run check` en verde.
+- Plan: `trading.ts` (wallet + doc de unidades) → `evaluation-input.ts` (`AGENT_WALLET_ADDRESS`, conversión exacta, gaps) → `evaluate.ts` (`QuoteGap`, `quoteGaps`, `normalizeQuotes` ≥1) → `.env.example` → tests → specs hermanas.
+- Decisiones (Agustín, 28 sep 2026):
+  - La wallet sale de `AGENT_WALLET_ADDRESS` en el `.env` del servidor; no se pide al usuario. Es la wallet del agente (la misma que ejecutaría el swap en la ola de firma).
+  - Conjunto parcial con motivo: un venue sin quote entra como `quoteGap` (`NOT_LISTED` / `NO_QUOTE`) y no hunde la pregunta 2.
+- Evidencia del sondeo en vivo (28 sep ~23:10 UTC, `logs/binance-calls-desconocido.jsonl`):
+  - Sin `userWalletAddress`: Ondo/xStocks `40001` («required for RFQ»), bStocks `40374` con amount `"200"` (=200 wei).
+  - Con wallet + `amount` en wei (`200 × 10^18`): bStocks y Ondo devuelven quote real (LiquidMesh, impacto 0.0006% y 0.0009%); Ondo cotiza desde 10 USD (`5e18` → `40375` mínimo). xStocks sigue `40374` para NVDA.
+- Notas:
+  - `quoteGaps` es aditivo: la pantalla actual lo ignora sin cambios; el texto para mostrarlo es área de Luciano.
+  - Las líneas del sondeo quedan en el log (telemetría del DX report; la spec de registro las conserva).
+- Verificación en vivo (28 sep ~23:30 UTC, `AGENT_WALLET_ADDRESS` ya en `.env`): `POST /api/evaluate` `{ticker: NVDA, amountUsd: 200}` devolvió `pass` real — ganador `bstocks` (`0x02fc…7436`, impacto 6.5e-6, costo simulado $200.0013), Ondo también cotizó (8.6e-6), ambas con `authenticity.ok`; xStocks quedó `quoteGaps: [{wrapper: xstocks, reason: NO_QUOTE}]`. Mercado `open`. `reference` y `exit` en «sin dato» como espera esta ventana.
 
 ## Revisión
 
-- **Veredicto: Aprobado** (revisión del harness, 28 sep 2026 ~20:30 -03). La spec `specs/conexion-datos.md` sigue en estado `borrador`: la aprobación final de Agustín —que cubre spec e implementación— ocurre en el pull request, según el acuerdo registrado.
-- Comandos corridos por el revisor: `git status`, `git diff` completo de los 6 archivos modificados, `npm run check` → **verde**: eslint sin errores, `tsc --noEmit` limpio, 122 unitarios (10 archivos) y 7 e2e pasando.
-- Criterios verificados contra código y tests: firma `X-OC-SIGN` (payload y las tres variantes HMAC/RSA/Ed25519, `tests/binance-sign.test.ts`); modo público sin credenciales con cotizaciones `"unavailable"` y pregunta 1 real (`tests/evaluation-input.test.ts`); impostor → corte de la pregunta 1; `priceImpactPercent`→proporción y `simulatedCostUsd` (`tests/trading.test.ts`); `reference`/`regime` desde `dynamic`/`status` (`tests/rwa-public.test.ts`, `evaluation-input`); escena «En vivo» (e2e en verde); una sola puerta — `fetch` solo existe dentro de `binanceRequest`.
-- Corrección de alias: especificada en la spec (criterio 2, viñeta «Credenciales»), en `.env.example` y en Decisiones; implementada con `firstNonEmpty` (el canónico `BINANCE_*` gana; el alias solo se usa si el canónico falta o está vacío/espacios) y cubierta por 5 tests nuevos en `tests/binance-sign.test.ts` (aceptación, prioridad de key y de secret, `null` sin firma, canónico vacío que no pisa al alias).
-- Secretos: el diff de `logs/binance-calls-desconocido.jsonl` (19 líneas nuevas de llamadas reales) no contiene API keys, secretos ni headers — solo params y respuestas públicas (direcciones de contrato, precios, estado de mercado, errores de quote). `.env` no está trackeado (`.gitignore`). Conforme a `specs/registro-llamadas.md`, las líneas se suben y no se borran.
-- Observación menor (no bloqueante): `getAggregatedQuote` acepta `code` `0`/`"0"`; la spec menciona `"000000"` (formato de los endpoints `/bapi` públicos). Los logs reales muestran que `/build` devuelve `code` entero, y un `"000000"` improbable caería en `"unavailable"` — fail-closed, seguro. Si se quiere cubrir también ese formato, va en una corrección futura.
+**Veredicto: Aprobado.** Revisor: Devin (harness), 2026-09-29, sobre el working tree de `feat/cotizaciones-parciales`.
+
+### Comandos corridos
+
+- `git status` + `git diff` de todos los archivos tocados (implementador y líder).
+- `npm run check` completo — **en verde**: eslint limpio, `tsc --noEmit` limpio, **131 tests unitarios** (10 archivos) y **7 e2e** de Playwright, todo en verde (~12 s).
+
+### Criterios verificados contra código
+
+- `getAggregatedQuote` (`lib/binance/trading.ts:83-84`): agrega `userWalletAddress` al `query` solo si `walletAddress?.trim()` es no vacío; el param entra al `queryString` que se firma (`requestPath`, línea 88-91) y a la URL fetch — la firma cubre el query completo. `amount` documentado como unidades mínimas del `from` token (línea 65).
+- Conversión exacta `toMinimalUnits` (`trading.ts:24-40`): cadena + `BigInt`, sin floats; expande notación exponencial y trunca (slice) en vez de redondear. Verificado: `200` → `"200000000000000000000"`, `5.5` → `"5500000000000000000"`, `1.9e-19` → `"0"` (trunca).
+- `realInputDeps` (`evaluation-input.ts:73`): `AGENT_WALLET_ADDRESS` con trim, `undefined` si ausente/vacía.
+- `buildQuotes` (`evaluation-input.ts:189-220`): wrapper sin contrato → `NOT_LISTED` **sin llamar** a `sources.quote`; quote `"unavailable"` → `NO_QUOTE`; `checkContractSources` (pregunta 1) corre **solo** sobre contratos que sí cotizaron; `simulatedCostUsd` sigue en USD (línea 213). `buildEvaluateInput` emite `quotes: "unavailable"` con cero cotizaciones y `quoteGaps` solo cuando hay gaps (líneas 104-106).
+- `evaluate` (`lib/evaluate.ts`): tipo `QuoteGap` nuevo; `quoteGaps?` en `EvaluateInput` y propagado a `unavailable` (q1 y q2), `cut` q1 y q2, y `pass` — las variantes que exponen cotizaciones. `normalizeQuotes` acepta ≥1 válida (`byWrapper.size === 0` → null), sigue dedupe, validación por campo (suma rechazo de wrapper desconocido, fail closed) y orden estable `bstocks → ondo → xstocks`.
+- Aditivo: `git diff --name-only` confirma **cero cambios en `app/` y `components/`**; los e2e de pantalla pasan sin tocar. `Evaluation` solo suma campos opcionales.
+- Secretos: `git diff logs/` solo agrega líneas de sondeo con `params` públicos (la wallet `0xcB9f...` es address on-chain, dato público según la spec); no hay API keys ni headers. `.env.example` documenta `AGENT_WALLET_ADDRESS` como opcional.
+
+### Tests revisados — verifican comportamiento real, no humo
+
+- `trading.test.ts`: afirma `userWalletAddress` en el **path firmado** y en la URL fetch, y su ausencia sin wallet o con wallet en blanco.
+- `evaluation-input.test.ts`: wei exacto en el argumento real de la llamada (`"200000000000000000000"`, `"5500000000000000000"`); `NOT_LISTED` verificado por las llamadas al mock (solo bstocks+xstocks, ondo nunca se cotizó); `NO_QUOTE` + pregunta 1 no evaluada sobre el contrato sin ruta (assert sobre conteo de `search`/`profile`); los tres gaps cuando ningún venue cotiza; `toMinimalUnits` y `realInputDeps` con casos reales.
+- `evaluate.test.ts`: conjunto parcial decide (`pass` con 2 quotes + gap propagado), **una sola cotización alcanza**, gaps propagados a `cut` q2 y a `unavailable`, cero/duplicadas/NaN siguen `unavailable`.
+
+### Hallazgos menores (no bloqueantes)
+
+- Con `deps.sign === null`, `buildQuotes` devuelve `quotes: []` y `gaps: []` (no declara `NOT_LISTED` aunque el contrato falte): es diagnóstico que se podría enriquecer, pero `quoteGaps` es opcional y el conjunto queda `unavailable` igual que antes — fail closed.
+- `toMinimalUnits` lanzaría con `NaN`/`Infinity`, pero `buildEvaluateInput` valida `Number.isFinite` y `> 0` antes de llamarlo (línea 89): inalcanzable por el camino real.

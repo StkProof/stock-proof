@@ -7,12 +7,18 @@ import {
   type PublicToken,
 } from "@/lib/binance/rwa-public";
 import { binanceWeb3Signer, WEB3_BASE_URL } from "@/lib/binance/sign";
-import { getAggregatedQuote, USDT_BSC } from "@/lib/binance/trading";
+import {
+  getAggregatedQuote,
+  toMinimalUnits,
+  USDT_BSC,
+  USDT_BSC_DECIMALS,
+} from "@/lib/binance/trading";
 import type { SignRequest } from "@/lib/binance/rwa";
 import {
   WRAPPERS,
   type EvaluateInput,
   type Quote,
+  type QuoteGap,
   type ReferenceInput,
   type RegimeInput,
   type WrapperId,
@@ -34,6 +40,11 @@ export type EvaluateRequest = {
  */
 export type InputDeps = {
   sign: SignRequest | null;
+  /**
+   * Address EVM en BSC del agente: viaja como `userWalletAddress` en las cotizaciones.
+   * Sin ella los venues RFQ responden error y quedan `NO_QUOTE`.
+   */
+  walletAddress?: string;
   rpcUrl?: string;
   context?: CallContext;
   /** Para tests: sobreescribe las fuentes una a una. */
@@ -58,6 +69,7 @@ export function realInputDeps(env: NodeJS.ProcessEnv = process.env): InputDeps {
   const sign = binanceWeb3Signer(env);
   return {
     sign,
+    walletAddress: env.AGENT_WALLET_ADDRESS?.trim() || undefined,
     rpcUrl: env.BSC_RPC_URL?.trim() || "https://bsc-dataseed.bnbchain.org",
   };
 }
@@ -82,7 +94,7 @@ export async function buildEvaluateInput(
   const byWrapper = tokensOfTicker(tokens, ticker);
 
   const target = await buildTarget(req.address, ticker, byWrapper, sources);
-  const quotes = await buildQuotes(req.amountUsd, byWrapper, sources, deps);
+  const { quotes, gaps } = await buildQuotes(req.amountUsd, byWrapper, sources, deps);
   const reference = await buildReference(byWrapper, sources);
   const regime = await buildRegime(sources);
 
@@ -90,7 +102,8 @@ export async function buildEvaluateInput(
     ticker,
     amountUsd: req.amountUsd,
     ...(target === undefined ? {} : { target }),
-    quotes,
+    quotes: quotes.length === 0 ? "unavailable" : quotes,
+    ...(gaps.length === 0 ? {} : { quoteGaps: gaps }),
     reference,
     regime,
     exit: "unavailable",
@@ -111,7 +124,15 @@ function resolveSources(deps: InputDeps): InputSources {
       deps.sign === null
         ? Promise.resolve("unavailable")
         : getAggregatedQuote(
-            { fromTokenAddress: from, toTokenAddress: to, amount, purpose: "q2", side: "buy", wrapper },
+            {
+              fromTokenAddress: from,
+              toTokenAddress: to,
+              amount,
+              walletAddress: deps.walletAddress,
+              purpose: "q2",
+              side: "buy",
+              wrapper,
+            },
             { sign: deps.sign, baseUrl: WEB3_BASE_URL, context: deps.context },
           ),
     dynamic: (address) => getTokenDynamic(address, publicDeps),
@@ -158,42 +179,48 @@ async function buildTarget(
 }
 
 /**
- * Una cotización por emisor con la pregunta 1 ya corrida sobre su contrato. Sin `sign` o sin
- * contrato listado, el conjunto queda `"unavailable"` (la spec pide las tres o nada).
+ * Cotiza cada wrapper con contrato listado para el ticker, en unidades mínimas de USDT
+ * y con la wallet del agente. Conjunto parcial con motivo: sin contrato queda `NOT_LISTED`
+ * (ni se intenta), sin quote usable queda `NO_QUOTE`; la pregunta 1 solo corre sobre los
+ * contratos que sí cotizaron (sin ruta no hay nada que evaluar). Sin `sign` no hay llamada
+ * firmada posible: el conjunto queda vacío.
  */
 async function buildQuotes(
   amountUsd: number,
   byWrapper: Map<WrapperId, PublicToken>,
   sources: InputSources,
   deps: InputDeps,
-): Promise<Quote[] | "unavailable"> {
-  if (deps.sign === null) return "unavailable";
-  const amount = amountUsd.toString();
+): Promise<{ quotes: Quote[]; gaps: QuoteGap[] }> {
+  if (deps.sign === null) return { quotes: [], gaps: [] };
+  const amount = toMinimalUnits(amountUsd, USDT_BSC_DECIMALS);
 
   const perWrapper = await Promise.all(
-    WRAPPERS.map(async (wrapper): Promise<Quote | null> => {
+    WRAPPERS.map(async (wrapper): Promise<{ quote: Quote } | { gap: QuoteGap }> => {
       const token = byWrapper.get(wrapper);
-      if (token === undefined) return null;
-      const [quote, authenticity] = await Promise.all([
-        sources.quote(USDT_BSC, token.contractAddress, amount, wrapper),
-        checkContractSources(
-          { ticker: token.ticker, wrapper, address: token.contractAddress },
-          sources.q1,
-        ).catch((): Q1Result => ({ ok: false, reason: "LIST_UNAVAILABLE" })),
-      ]);
-      if (quote === "unavailable") return null;
+      if (token === undefined) return { gap: { wrapper, reason: "NOT_LISTED" } };
+      const quote = await sources.quote(USDT_BSC, token.contractAddress, amount, wrapper);
+      if (quote === "unavailable") return { gap: { wrapper, reason: "NO_QUOTE" } };
+      const authenticity = await checkContractSources(
+        { ticker: token.ticker, wrapper, address: token.contractAddress },
+        sources.q1,
+      ).catch((): Q1Result => ({ ok: false, reason: "LIST_UNAVAILABLE" }));
       return {
-        wrapper,
-        address: token.contractAddress,
-        side: "buy",
-        impactRatio: quote.impactRatio,
-        simulatedCostUsd: amountUsd * (1 + quote.impactRatio),
-        authenticity,
+        quote: {
+          wrapper,
+          address: token.contractAddress,
+          side: "buy",
+          impactRatio: quote.impactRatio,
+          simulatedCostUsd: amountUsd * (1 + quote.impactRatio),
+          authenticity,
+        },
       };
     }),
   );
 
-  return perWrapper.every((quote): quote is Quote => quote !== null) ? perWrapper : "unavailable";
+  return {
+    quotes: perWrapper.flatMap((item) => ("quote" in item ? [item.quote] : [])),
+    gaps: perWrapper.flatMap((item) => ("gap" in item ? [item.gap] : [])),
+  };
 }
 
 /**

@@ -27,6 +27,19 @@ export type Quote = {
   authenticity: Q1Result;
 };
 
+/**
+ * Un wrapper que no aportó cotización al conjunto. Diagnóstico: informa qué venue faltó
+ * y por qué; no cambia la elegibilidad ni el ganador.
+ */
+export type QuoteGap = {
+  wrapper: WrapperId;
+  /**
+   * `NOT_LISTED`: el emisor no tiene contrato en BSC para ese ticker (no se cotizó).
+   * `NO_QUOTE`: el venue respondió error, sin `data` o con formato raro.
+   */
+  reason: "NOT_LISTED" | "NO_QUOTE";
+};
+
 /** Fuente y fecha de un dato publicado o medido. */
 export type Source = { name: string; url?: string };
 
@@ -128,8 +141,13 @@ export type EvaluateInput = {
    * Si está, la pregunta 1 se corre sobre él antes de mirar cotizaciones.
    */
   target?: { address: string; check: Q1Result | "unavailable" };
-  /** Una cotización por wrapper. Cada una trae el resultado de la pregunta 1 sobre su contrato. */
+  /**
+   * Las cotizaciones que llegaron, una por wrapper cotizado (el conjunto puede ser parcial).
+   * `"unavailable"` si no llegó ninguna. Cada una trae la pregunta 1 sobre su contrato.
+   */
   quotes: Quote[] | "unavailable";
+  /** Wrappers que no aportaron cotización y por qué. Diagnóstico aditivo: no decide. */
+  quoteGaps?: QuoteGap[];
   reference?: ReferenceInput | "unavailable";
   regime?: RegimeInput | "unavailable";
   exit?: ExitBlock | "unavailable";
@@ -138,9 +156,16 @@ export type EvaluateInput = {
 
 export type Evaluation =
   | { kind: "invalid" }
-  | { kind: "unavailable"; question: QuestionId; reason: string }
-  | { kind: "cut"; question: 1; reason: Q1CutReason; address?: string; quotes?: Quote[] }
-  | { kind: "cut"; question: 2; reason: Q2CutReason; quotes: Quote[] }
+  | { kind: "unavailable"; question: QuestionId; reason: string; quoteGaps?: QuoteGap[] }
+  | {
+      kind: "cut";
+      question: 1;
+      reason: Q1CutReason;
+      address?: string;
+      quotes?: Quote[];
+      quoteGaps?: QuoteGap[];
+    }
+  | { kind: "cut"; question: 2; reason: Q2CutReason; quotes: Quote[]; quoteGaps?: QuoteGap[] }
   | { kind: "cut"; question: 3; reason: string; reference: Reference }
   | { kind: "cut"; question: 4; reason: string; regime: Regime }
   | {
@@ -152,6 +177,8 @@ export type Evaluation =
       simulatedCostUsd: number;
       tied: boolean;
       quotes: Quote[];
+      /** Wrappers que no cotizaron (conjunto parcial). Diagnóstico, no decide. */
+      quoteGaps?: QuoteGap[];
       reference: Reference;
       regime: Regime;
       exit: ExitBlock;
@@ -195,22 +222,31 @@ export function evaluate(input: EvaluateInput): Evaluation {
     return { kind: "invalid" };
   }
 
+  // Diagnóstico del conjunto parcial: viaja a todo resultado que expone cotizaciones.
+  const gaps = input.quoteGaps === undefined ? {} : { quoteGaps: input.quoteGaps };
+
   if (input.target !== undefined) {
     const check = input.target.check;
     if (check === "unavailable") {
-      return { kind: "unavailable", question: 1, reason: "LIST_UNAVAILABLE" };
+      return { kind: "unavailable", question: 1, reason: "LIST_UNAVAILABLE", ...gaps };
     }
     if (!check.ok) {
       if (isUnavailableReason(check.reason)) {
-        return { kind: "unavailable", question: 1, reason: check.reason };
+        return { kind: "unavailable", question: 1, reason: check.reason, ...gaps };
       }
-      return { kind: "cut", question: 1, reason: check.reason, address: input.target.address };
+      return {
+        kind: "cut",
+        question: 1,
+        reason: check.reason,
+        address: input.target.address,
+        ...gaps,
+      };
     }
   }
 
   const quotes = normalizeQuotes(input.quotes);
   if (quotes === null) {
-    return { kind: "unavailable", question: 2, reason: "QUOTES_UNAVAILABLE" };
+    return { kind: "unavailable", question: 2, reason: "QUOTES_UNAVAILABLE", ...gaps };
   }
 
   const eligible = quotes.filter((quote) => quote.authenticity.ok);
@@ -220,7 +256,12 @@ export function evaluate(input: EvaluateInput): Evaluation {
       (quote) => !quote.authenticity.ok && isUnavailableReason(quote.authenticity.reason),
     );
     if (unverified && !unverified.authenticity.ok) {
-      return { kind: "unavailable", question: 1, reason: unverified.authenticity.reason };
+      return {
+        kind: "unavailable",
+        question: 1,
+        reason: unverified.authenticity.reason,
+        ...gaps,
+      };
     }
     // Todas fallaron con motivo de corte: el motivo es el del que hubiera ganado por impacto.
     const cheapest = [...quotes].sort((a, b) => a.impactRatio - b.impactRatio)[0];
@@ -228,12 +269,12 @@ export function evaluate(input: EvaluateInput): Evaluation {
       !cheapest.authenticity.ok && !isUnavailableReason(cheapest.authenticity.reason)
         ? cheapest.authenticity.reason
         : "CONTRACT_NOT_LISTED";
-    return { kind: "cut", question: 1, reason, quotes };
+    return { kind: "cut", question: 1, reason, quotes, ...gaps };
   }
 
   const fitting = eligible.filter((quote) => quote.impactRatio <= IMPACT_LIMIT);
   if (fitting.length === 0) {
-    return { kind: "cut", question: 2, reason: "IMPACT_OVER_LIMIT", quotes };
+    return { kind: "cut", question: 2, reason: "IMPACT_OVER_LIMIT", quotes, ...gaps };
   }
 
   const bestImpact = Math.min(...fitting.map((quote) => quote.impactRatio));
@@ -243,7 +284,7 @@ export function evaluate(input: EvaluateInput): Evaluation {
   ).find((quote): quote is Quote => quote !== undefined);
 
   if (winner === undefined) {
-    return { kind: "unavailable", question: 2, reason: "QUOTES_UNAVAILABLE" };
+    return { kind: "unavailable", question: 2, reason: "QUOTES_UNAVAILABLE", ...gaps };
   }
 
   const reference = buildReference(input.reference);
@@ -262,11 +303,15 @@ export function evaluate(input: EvaluateInput): Evaluation {
     reference,
     regime,
     exit,
+    ...gaps,
     ...(constraints === undefined ? {} : { constraints }),
   };
 }
 
-/** Devuelve las tres cotizaciones en orden estable, o null si el conjunto no sirve. */
+/**
+ * Devuelve las cotizaciones válidas en orden estable (`WRAPPERS`), o null si el conjunto
+ * no sirve: cero válidas, duplicadas o con campos malformados. Basta una válida.
+ */
 function normalizeQuotes(quotes: Quote[] | "unavailable"): Quote[] | null {
   if (quotes === "unavailable") {
     return null;
@@ -278,6 +323,7 @@ function normalizeQuotes(quotes: Quote[] | "unavailable"): Quote[] | null {
       return null;
     }
     if (
+      !WRAPPERS.includes(quote.wrapper) ||
       typeof quote.address !== "string" ||
       quote.address.length === 0 ||
       (quote.side !== "buy" && quote.side !== "sell") ||
@@ -290,17 +336,16 @@ function normalizeQuotes(quotes: Quote[] | "unavailable"): Quote[] | null {
     byWrapper.set(quote.wrapper, quote);
   }
 
-  if (byWrapper.size !== WRAPPERS.length) {
+  if (byWrapper.size === 0) {
     return null;
   }
 
   const ordered: Quote[] = [];
   for (const wrapper of WRAPPERS) {
     const quote = byWrapper.get(wrapper);
-    if (quote === undefined) {
-      return null;
+    if (quote !== undefined) {
+      ordered.push(quote);
     }
-    ordered.push(quote);
   }
   return ordered;
 }

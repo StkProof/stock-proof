@@ -13,6 +13,31 @@ export const QUOTE_PATH = "/api/v1/dex/aggregator/quote";
 
 /** USDT BEP-20 en BSC mainnet: la moneda con la que la demo paga y cobra. */
 export const USDT_BSC = "0x55d398326f99059fF775485246999027B3197955";
+/** Decimales de USDT en BSC: los montos de la Trading API van en unidades mínimas (wei). */
+export const USDT_BSC_DECIMALS = 18;
+
+/**
+ * Convierte `amount` (unidades del token) a unidades mínimas como cadena de enteros, con
+ * aritmética exacta: lo que excede `decimals` se trunca, nunca se redondea ni pasa por float.
+ * `200` con 18 → `"200000000000000000000"`; `5.5` → `"5500000000000000000"`.
+ */
+export function toMinimalUnits(amount: number, decimals: number): string {
+  const [whole, fraction = ""] = expandExponential(amount.toString()).split(".");
+  const digits = (fraction + "0".repeat(decimals)).slice(0, decimals);
+  return BigInt(whole + digits).toString();
+}
+
+/** Pasa `1.9e-19` a `"0.00000000000000000019"`: `toString` puede devolver notación exponencial. */
+function expandExponential(text: string): string {
+  const match = /^(-?)(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/.exec(text);
+  if (match === null) return text;
+  const [, sign, whole, fraction = "", exponent] = match;
+  const digits = whole + fraction;
+  const point = whole.length + Number(exponent);
+  if (point <= 0) return `${sign}0.${"0".repeat(-point)}${digits}`;
+  if (point >= digits.length) return sign + digits + "0".repeat(point - digits.length);
+  return `${sign}${digits.slice(0, point)}.${digits.slice(point)}`;
+}
 
 export type AggregatedQuote = {
   /** Proporción de impacto del precio (`priceImpactPercent` / 100). */
@@ -37,8 +62,10 @@ export async function getAggregatedQuote(
   args: {
     fromTokenAddress: string;
     toTokenAddress: string;
-    /** En unidades del `from` token (USDT para compras con USD). */
+    /** En unidades mínimas del `from` token (wei: USDT en BSC tiene 18 decimales). */
     amount: string;
+    /** Address EVM en BSC de la wallet que ejecutaría el swap: los venues RFQ la exigen. */
+    walletAddress?: string;
     binanceChainId?: string;
     /** Contexto del registro: para qué es la cotización. */
     purpose?: string;
@@ -53,6 +80,8 @@ export async function getAggregatedQuote(
     fromTokenAddress: args.fromTokenAddress,
     toTokenAddress: args.toTokenAddress,
   };
+  const wallet = args.walletAddress?.trim();
+  if (wallet) query.userWalletAddress = wallet;
   const queryString = Object.entries(query)
     .map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`)
     .join("&");
