@@ -21,6 +21,7 @@
 - Notas:
   - `quoteGaps` es aditivo: la pantalla actual lo ignora sin cambios; el texto para mostrarlo es área de Luciano.
   - Las líneas del sondeo quedan en el log (telemetría del DX report; la spec de registro las conserva).
+- Verificación en vivo (28 sep ~23:30 UTC, `AGENT_WALLET_ADDRESS` ya en `.env`): `POST /api/evaluate` `{ticker: NVDA, amountUsd: 200}` devolvió `pass` real — ganador `bstocks` (`0x02fc…7436`, impacto 6.5e-6, costo simulado $200.0013), Ondo también cotizó (8.6e-6), ambas con `authenticity.ok`; xStocks quedó `quoteGaps: [{wrapper: xstocks, reason: NO_QUOTE}]`. Mercado `open`. `reference` y `exit` en «sin dato» como espera esta ventana.
 
 ## Revisión
 
