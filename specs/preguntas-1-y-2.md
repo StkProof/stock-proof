@@ -3,7 +3,7 @@
 - **Estado**: aprobada
 - **Fecha**: 2026-09-27
 - **Aprobación**: el usuario pidió asentar esta base para que el resto del equipo trabaje encima (27 sep 2026). La pantalla y las APIs reales quedan para ellos; esta aprobación cubre el contrato y `evaluate`.
-- **Autor**: líder (Cursor), a partir de `../stockproof-vault/Idea.md` y `../stockproof-vault/MVP.md`
+- **Autor**: líder (Cursor), a partir de `../vault-stockproof/Idea.md` y `../vault-stockproof/MVP.md`
 
 ## Contexto y problema
 
