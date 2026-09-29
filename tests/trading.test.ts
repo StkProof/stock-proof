@@ -58,6 +58,40 @@ describe("getAggregatedQuote", () => {
     expect(fetchSpy.mock.calls[0][0]).toContain("https://web3.binance.com/build/api/v1/dex/aggregator/quote");
   });
 
+  it("manda userWalletAddress en el query firmado solo cuando viene walletAddress", async () => {
+    fetchSpy.mockResolvedValue(json([{ toTokenAmount: "1", priceImpactPercent: "0.1" }]));
+    const signed: SignRequest = vi.fn(async () => ({}));
+
+    await getAggregatedQuote(
+      {
+        fromTokenAddress: USDT_BSC,
+        toTokenAddress: NVDAB,
+        amount: "200000000000000000000",
+        walletAddress: "0xAGENTE",
+      },
+      { sign: signed },
+    );
+    const [, conWallet] = (signed as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(conWallet).toContain("userWalletAddress=0xAGENTE");
+    expect(fetchSpy.mock.calls[0][0]).toContain("userWalletAddress=0xAGENTE");
+
+    // Sin wallet (o vacía) el parámetro no aparece ni en la firma ni en la URL.
+    await getAggregatedQuote(
+      { fromTokenAddress: USDT_BSC, toTokenAddress: NVDAB, amount: "200000000000000000000" },
+      { sign: signed },
+    );
+    const [, sinWallet] = (signed as ReturnType<typeof vi.fn>).mock.calls[1];
+    expect(sinWallet).not.toContain("userWalletAddress");
+    expect(fetchSpy.mock.calls[1][0]).not.toContain("userWalletAddress");
+
+    await getAggregatedQuote(
+      { fromTokenAddress: USDT_BSC, toTokenAddress: NVDAB, amount: "1", walletAddress: "   " },
+      { sign: signed },
+    );
+    const [, vacia] = (signed as ReturnType<typeof vi.fn>).mock.calls[2];
+    expect(vacia).not.toContain("userWalletAddress");
+  });
+
   it("sin priceImpactPercent legible → unavailable; sin data en lista → unavailable", async () => {
     fetchSpy.mockResolvedValue(json([{ vendorName: "x", toTokenAmount: "0.8" }]));
     expect(

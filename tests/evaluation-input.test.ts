@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PublicToken } from "@/lib/binance/rwa-public";
-import { buildEvaluateInput, type InputDeps, type InputSources } from "@/lib/evaluation-input";
+import { toMinimalUnits } from "@/lib/binance/trading";
+import {
+  buildEvaluateInput,
+  realInputDeps,
+  type InputDeps,
+  type InputSources,
+} from "@/lib/evaluation-input";
 import type { Quote } from "@/lib/evaluate";
 import type { Q1Sources } from "@/lib/questions/q1";
 
@@ -98,17 +104,76 @@ describe("buildEvaluateInput", () => {
     expect(bstocks.simulatedCostUsd).toBeCloseTo(200.6);
     expect(bstocks.authenticity).toEqual({ ok: true });
     expect(bstocks.side).toBe("buy");
+    expect(input.quoteGaps).toBeUndefined();
   });
 
-  it("falta un emisor para el ticker → cotizaciones unavailable", async () => {
+  it("un wrapper sin contrato listado queda NOT_LISTED y no se cotiza", async () => {
+    const quote = vi.fn<InputSources["quote"]>(async (_f, _t, _a, wrapper) => ({
+      impactRatio: wrapper === "bstocks" ? 0.003 : 0.008,
+      toAmount: 1,
+    }));
     const input = await buildEvaluateInput(
       { ticker: "NVDA", amountUsd: 200 },
       {
         ...withSign,
-        overrides: sources({ listTokens: async () => LIST.filter((t) => t.wrapper !== "ondo") }),
+        overrides: sources({
+          listTokens: async () => LIST.filter((t) => t.wrapper !== "ondo"),
+          quote,
+        }),
       },
     );
+
+    // Ondo no tiene contrato: ni se llamó al venue. El resto cotiza igual.
+    expect(quote.mock.calls.map((call) => call[3])).toEqual(["bstocks", "xstocks"]);
+    expect((input.quotes as Quote[]).map((q) => q.wrapper)).toEqual(["bstocks", "xstocks"]);
+    expect(input.quoteGaps).toEqual([{ wrapper: "ondo", reason: "NOT_LISTED" }]);
+  });
+
+  it("un venue sin quote queda NO_QUOTE y su contrato no se evalúa", async () => {
+    const search = vi.fn(OK_SOURCES.search);
+    const profile = vi.fn(OK_SOURCES.profile);
+    const input = await buildEvaluateInput(
+      { ticker: "NVDA", amountUsd: 200 },
+      {
+        ...withSign,
+        overrides: sources({
+          quote: async (_f, _t, _a, wrapper) =>
+            wrapper === "ondo" ? "unavailable" : { impactRatio: 0.003, toAmount: 1 },
+          q1: { ...OK_SOURCES, search, profile },
+        }),
+      },
+    );
+
+    expect((input.quotes as Quote[]).map((q) => q.wrapper)).toEqual(["bstocks", "xstocks"]);
+    expect(input.quoteGaps).toEqual([{ wrapper: "ondo", reason: "NO_QUOTE" }]);
+    // La pregunta 1 corrió solo para bStocks (xStocks no tiene lista oficial; Ondo sin ruta).
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(profile.mock.calls.map((call) => call[1])).toEqual([NVDAB]);
+  });
+
+  it("ningún venue cotiza → quotes unavailable con los tres gaps", async () => {
+    const input = await buildEvaluateInput(
+      { ticker: "NVDA", amountUsd: 200 },
+      { ...withSign, overrides: sources({ quote: async () => "unavailable" }) },
+    );
+
     expect(input.quotes).toBe("unavailable");
+    expect(input.quoteGaps).toEqual([
+      { wrapper: "bstocks", reason: "NO_QUOTE" },
+      { wrapper: "ondo", reason: "NO_QUOTE" },
+      { wrapper: "xstocks", reason: "NO_QUOTE" },
+    ]);
+  });
+
+  it("el quote recibe el monto en unidades mínimas de USDT, sin floats", async () => {
+    const quote = vi.fn<InputSources["quote"]>(async () => ({ impactRatio: 0.003, toAmount: 1 }));
+    const deps = { ...withSign, overrides: sources({ quote }) };
+
+    await buildEvaluateInput({ ticker: "NVDA", amountUsd: 200 }, deps);
+    expect(quote.mock.calls[0][2]).toBe("200000000000000000000");
+
+    await buildEvaluateInput({ ticker: "NVDA", amountUsd: 5.5 }, deps);
+    expect(quote.mock.calls[3][2]).toBe("5500000000000000000");
   });
 
   it("reference y regime reflejan los datos públicos del token de bStocks", async () => {
@@ -148,5 +213,28 @@ describe("buildEvaluateInput", () => {
       { ...withSign, overrides: sources() },
     );
     expect(input.exit).toBe("unavailable");
+  });
+});
+
+describe("toMinimalUnits", () => {
+  it("convierte a unidades mínimas con aritmética exacta y trunca el exceso", () => {
+    expect(toMinimalUnits(200, 18)).toBe("200000000000000000000");
+    expect(toMinimalUnits(5.5, 18)).toBe("5500000000000000000");
+    expect(toMinimalUnits(0.1, 18)).toBe("100000000000000000");
+    // 19 decimales de fracción exceden los 18 del token: se trunca a cero, no redondea.
+    expect(toMinimalUnits(1.9e-19, 18)).toBe("0");
+    expect(toMinimalUnits(123456789, 6)).toBe("123456789000000");
+  });
+});
+
+describe("realInputDeps", () => {
+  it("lee AGENT_WALLET_ADDRESS recortada; vacía o ausente queda undefined", () => {
+    const env = { ...process.env };
+    delete env.AGENT_WALLET_ADDRESS;
+    expect(
+      realInputDeps({ ...env, AGENT_WALLET_ADDRESS: "  0xAgente " }).walletAddress,
+    ).toBe("0xAgente");
+    expect(realInputDeps(env).walletAddress).toBeUndefined();
+    expect(realInputDeps({ ...env, AGENT_WALLET_ADDRESS: "   " }).walletAddress).toBeUndefined();
   });
 });

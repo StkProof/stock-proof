@@ -38,7 +38,8 @@ La parte de la entrada que ve el usuario y la frase en castellano:
 - `amountUsd`: número positivo.
 - `target` (opcional): `{ address, check }` — una dirección en BSC que el usuario pegó para revisar, con el resultado de su pregunta 1 (`checkContract`, ADR 0002) o `"unavailable"`. Si está, la pregunta 1 se corre sobre ella antes de mirar cotizaciones (escena 3 del video: el impostor). Si no está, la pregunta 1 se decide con el `authenticity` que trae cada cotización.
 - `constraints` (opcional): topes que salen de la frase (`maxImpactRatio`, `maxDeviationRatio`). Se miran **después** de las cuatro preguntas (`Idea.md`): no las reemplazan ni las apagan.
-- `quotes`: una cotización por wrapper (ver `Quote` abajo) o `"unavailable"`. Cada cotización trae su `address` y el resultado de la pregunta 1 sobre ese contrato.
+- `quotes`: una cotización por cada wrapper que cotizó (ver `Quote` abajo), o `"unavailable"` cuando no llegó ninguna. Cada cotización trae su `address` y el resultado de la pregunta 1 sobre ese contrato.
+- `quoteGaps` (opcional): un `{ wrapper, reason }` por cada wrapper sin cotización — `NOT_LISTED` (sin contrato en la lista oficial) o `NO_QUOTE` (el venue no devolvió quote). Es diagnóstico: no cambia la elegibilidad ni el ganador (`specs/cotizaciones-parciales.md`).
 - `reference`, `regime`, `exit` (opcionales): datos ya traídos de las preguntas 3 y 4 y de la simulación de salida, o `"unavailable"`. **Mientras las preguntas 3 y 4 no estén implementadas**, llegan ausentes y el resultado las devuelve en «sin dato»: la ola 1 no se bloquea esperándolas, y cuando se conecten pueden producir cortes sin tocar el formato.
 
 ## Resultado
@@ -50,7 +51,7 @@ Una sola variante. `question` es `1 | 2 | 3 | 4`. Las preguntas se evalúan en o
 | `invalid` | — | Ticker vacío o monto que no es un número positivo | Pide corregir la entrada. Sin costos ni firma |
 | `unavailable` | `question`, `reason` | Un dato necesario de esa pregunta no se pudo obtener (p.ej. `LIST_UNAVAILABLE`, `ATTESTATION_UNAVAILABLE`, `CHAIN_UNAVAILABLE` de la 1; `QUOTES_UNAVAILABLE` de la 2) | Dice que no se pudo evaluar esa pregunta, con el motivo. No inventa precios ni arma la transacción (fail closed) |
 | `cut` | `question: 1`, `reason`, `address` | El contrato revisado no es el oficial (o el pegado no figura en la lista) | Explica el corte con el motivo y la dirección. Sin costos ni firma |
-| `cut` | `question: 2`, `reason`, `quotes` | Ningún wrapper elegible llena el monto a ≤ 1% de impacto | Muestra los tres costos/impactos y el corte. Sin firma |
+| `cut` | `question: 2`, `reason`, `quotes` | Ningún wrapper elegible llena el monto a ≤ 1% de impacto | Muestra los costos/impactos que llegaron, los venues sin cotización (`quoteGaps`) y el corte. Sin firma |
 | `cut` | `question: 3`, `reason`, `reference` | El número no se puede explicar como la acción (desvío sin explicación conocida) | Muestra referencia, pool, desvío y el motivo. Sin firma |
 | `cut` | `question: 4`, `reason`, `regime` | El régimen del ticker no permite operar (mercado cerrado con libro clavado, pools que no coinciden, según la spec de la 4) | Muestra el régimen medido y el motivo. Sin firma |
 | `pass` | `wrapper`, `address`, `impactRatio`, `simulatedCostUsd`, `tied`, `quotes`, `reference`, `regime`, `exit`, `constraints` | Las cuatro preguntas pasaron | Las cuatro respuestas en verde, el wrapper elegido con su costo, el bloque de salida, los topes de la frase si los hay, y el botón de firma |
@@ -73,6 +74,11 @@ type Quote = {
   impactRatio: number;             // 0.01 = 1%
   simulatedCostUsd: number;
   authenticity: Q1Result;          // pregunta 1 sobre `address`; solo `ok` es elegible
+};
+
+type QuoteGap = {
+  wrapper: WrapperId;
+  reason: "NOT_LISTED" | "NO_QUOTE";  // sin contrato oficial / el venue no devolvió quote
 };
 
 type Source = { name: string; url?: string };
@@ -124,7 +130,7 @@ Reglas del bloque de salida (`Diferenciador.md`):
 
 ## Invariantes
 
-- `quotes` sale siempre en orden `bstocks`, `ondo`, `xstocks`, una por wrapper. La pantalla no depende del orden de la API.
+- `quotes` sale siempre en orden `bstocks`, `ondo`, `xstocks`, una por wrapper que cotizó (el conjunto puede ser parcial; los ausentes van en `quoteGaps` con su motivo). La pantalla no depende del orden de la API.
 - Un wrapper cuya pregunta 1 no pasó cotiza igual pero con `authenticity.ok = false` y no puede ganar (caso xStocks sin lista oficial: `ADR 0002`, decisión pendiente de Agustín — esta spec lo resuelve con `authenticity` por cotización).
 - Si **ninguna** cotización pasó su pregunta 1: con al menos un motivo «no se pudo evaluar» el resultado es `unavailable` de la pregunta 1 (fail closed, no impostor); si todas son motivos de corte, es `cut` de la pregunta 1 con el motivo de la cotización de menor impacto (la que hubiera ganado) y las `quotes` completas para que la pantalla muestre el detalle.
 - Si el usuario pegó una dirección (`target`), su resultado decide la pregunta 1 antes que cualquier cotización.
@@ -163,7 +169,8 @@ Reglas del bloque de salida (`Diferenciador.md`):
 - **Se extiende la unión por `kind`, no se reestructura.** La pantalla y los tests ya hablan ese idioma; `question: N` basta para saber qué pasó y qué no se consultó. Una estructura por pregunta (`questions: { q1, q2, q3, q4 }`) duplicaría información que la unión ya da.
 - **`reason` va en `cut` y `unavailable`, con `question`.** Es lo que el ADR 0002 ya dejó como consecuencia pendiente y lo que la escena 3 necesita para explicarse.
 - **`Quote` suma `side` y `address` desde el principio** (propuestas de `Plan.md` que esta spec hace formales): Exit Now es la misma simulación hacia el otro lado, y la pregunta 1 se decide por contrato.
-- **`authenticity` por cotización** (en vez de un flag `eligible` o un veredicto global) resuelve las dos pendientes del ADR 0002 de una vez: la pregunta 1 se decide por contrato (`quote.address`) y un wrapper sin lista oficial cotiza pero no gana, sin romper el invariante de tres cotizaciones.
+- **`authenticity` por cotización** (en vez de un flag `eligible` o un veredicto global) resuelve las dos pendientes del ADR 0002 de una vez: la pregunta 1 se decide por contrato (`quote.address`) y un wrapper sin lista oficial cotiza pero no gana, sin romper el orden estable del conjunto.
+- **El conjunto de cotizaciones es parcial** (emendado 28 sep 2026 por `specs/cotizaciones-parciales.md`, decisión de Agustín tras el sondeo en vivo): los venues RFQ piden `userWalletAddress` y pueden no cotizar un ticker aunque esté listado; exigir las tres dejaba la pregunta 2 siempre en «sin dato». Los ausentes se declaran en `quoteGaps` con motivo en vez de hundir el conjunto.
 - **El bloque `exit` existe solo en `pass` y cada capa puede ser «sin dato»**: el MVP lo muestra con las cuatro en verde, y `Diferenciador.md` prohíbe completar lo que no se midió.
 - **`constraints` se informa pero `evaluate` no decide con él**: los topes del usuario se miran después de las cuatro preguntas y la negación es del agente (issue #22). El campo está reservado para que la ola 4 no toque el formato.
 - **Códigos en inglés, textos en castellano**: el reparto ya está hecho (la lógica da códigos, Luciano escribe las frases).

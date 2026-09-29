@@ -38,16 +38,16 @@ Entrada:
 - `ticker`: texto.
 - `amountUsd`: número.
 - `authenticity`: `{ listed, attested, standardOk }` o `"unavailable"`.
-- `quotes`: una cotización por wrapper (`bstocks`, `ondo`, `xstocks`), cada una con `impactRatio` (0.01 = 1%) y `simulatedCostUsd`, o `"unavailable"`.
+- `quotes`: una cotización por cada wrapper (`bstocks`, `ondo`, `xstocks`) que cotizó, cada una con `impactRatio` (0.01 = 1%) y `simulatedCostUsd`, o `"unavailable"` cuando no llegó ninguna. Los wrappers sin cotización viajan aparte en `quoteGaps` con su motivo (`specs/cotizaciones-parciales.md`).
 
 Resultado, uno solo:
 
 | `kind` | Cuándo | Qué muestra la pantalla |
 | --- | --- | --- |
 | `invalid` | Ticker vacío o monto que no es un número positivo | Pide corregir la entrada. No hay costos ni botón de firma |
-| `unavailable` | La lista o las cotizaciones no se pudieron obtener, o no están los tres wrappers | Dice que no se pudo evaluar. No inventa un precio ni arma la transacción |
+| `unavailable` | La lista no se pudo obtener o no llegó ninguna cotización | Dice que no se pudo evaluar. No inventa un precio ni arma la transacción |
 | `cut` pregunta 1 | El ticker no está en la lista, no tiene attestation, o no cumple el estándar (BEP-8056 en bStocks) | Explica el corte. No muestra costos ni botón de firma |
-| `cut` pregunta 2 | Los tres impactos superan 1% | Muestra los tres costos y el corte. No hay botón de firma |
+| `cut` pregunta 2 | Todos los impactos disponibles superan 1% | Muestra los costos que llegaron, qué venue no cotizó y el corte. No hay botón de firma |
 | `pass` | Algún wrapper está en 1% o menos | Nombra el wrapper de menor impacto, el costo simulado y, si hubo empate, que empató. El botón de firma se ve y no envía la transacción |
 
 El desempate, de menor a mayor prioridad solo cuando el impacto es igual: bStocks, Ondo, xStocks. `pass.tied` es verdadero cuando otro wrapper igualó ese impacto.
@@ -58,8 +58,8 @@ La pregunta 1 se evalúa antes que la 2. Si la 1 corta, las cotizaciones no camb
 
 - [ ] Con un ticker cuyo contrato no está en la lista oficial, la pantalla muestra el corte de la pregunta 1 y no muestra costo de swap ni botón de firma (cómo se comprueba: e2e con la lista oficial sustituida por un doble de test).
 - [ ] Con un ticker oficial y un monto que un solo wrapper llena a ≤ 1% de impacto, la pantalla nombra ese wrapper y el costo simulado, y no arma una transacción (cómo se comprueba: e2e con cotizaciones sustituidas por un doble de test).
-- [ ] Con un ticker oficial y un monto que los tres wrappers superan el 1%, la pantalla muestra los tres costos y el corte de la pregunta 2, sin botón de firma (cómo se comprueba: e2e con el mismo doble).
-- [ ] La decisión «pasa / corta» y el wrapper elegido son una función pura de la lista, la attestation y las tres simulaciones, independiente de la UI (cómo se comprueba: unitario sobre esa función, con los tres casos de arriba más el desempate de impacto).
+- [ ] Con un ticker oficial y un monto que todos los wrappers que cotizaron superan el 1%, la pantalla muestra sus costos y el corte de la pregunta 2, sin botón de firma (cómo se comprueba: e2e con el mismo doble).
+- [ ] La decisión «pasa / corta» y el wrapper elegido son una función pura de la lista, la attestation y las simulaciones disponibles, independiente de la UI (cómo se comprueba: unitario sobre esa función, con los tres casos de arriba más el desempate de impacto).
 - [ ] `npm run check` sigue en verde.
 
 ## Casos borde
