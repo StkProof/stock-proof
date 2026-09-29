@@ -1,0 +1,30 @@
+# Etiqueta cada pull request según los archivos que toca.
+# Un pull request puede llevar más de una etiqueta.
+
+lógica:
+  - changed-files:
+      - any-glob-to-any-file: lib/**
+
+pantalla:
+  - changed-files:
+      - any-glob-to-any-file: app/**
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: [tests/**, e2e/**]
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ["**/*.md", specs/**, progress/**, docs/**]
+
+infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+          - package.json
+          - package-lock.json
+          - "*.config.*"
+          - tsconfig.json
+          - init.sh
+          - .gitignore
+          - .env.example
