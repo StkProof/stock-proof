@@ -1,6 +1,6 @@
 # Tarea: Conexión a datos reales (`/api/evaluate`)
 
-- Estado: en curso
+- Estado: mergeada en main (28 sep 2026); el bloqueo de quotes se resuelve en la tarea `cotizaciones-parciales`
 - Spec: specs/conexion-datos.md (Estado: borrador — Agustín pidió implementar junto con la spec; la aprueba en el pull request)
 - Issues que cubre: #2 (cliente firmado), #7 (cotización pregunta 2), #9 (conectar a evaluate)
 - Rama: `feat/conexion-datos`, sobre `feat/pantalla-estados` (que ya trae el formato congelado y el merge de `feat/registro-llamadas` con `assertBinanceHost`)
