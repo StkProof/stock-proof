@@ -3,7 +3,7 @@
 - **Estado**: borrador (falta la aprobación de Agustín)
 - **Fecha**: 2026-09-28
 - **Aprobación**: pendiente. Lautaro pidió implementarla en la misma rama (28 sep 2026); la aprobación de Agustín en el pull request aprueba spec e implementación juntas
-- **Autor**: Lautaro, a partir de `../stockproof-vault/Plan.md` (ola 0) y del acuerdo con Agustín del 28 sep 2026: todas las llamadas a Binance pasan por una sola función
+- **Autor**: Lautaro, a partir de `../vault-stockproof/Plan.md` (ola 0) y del acuerdo con Agustín del 28 sep 2026: todas las llamadas a Binance pasan por una sola función
 
 ## Contexto y problema
 

@@ -2,7 +2,7 @@
 
 - **Estado**: borrador — Agustín pidió implementar junto con la spec (28 sep 2026); la aprobación en el pull request cubre spec e implementación.
 - **Fecha**: 2026-09-28
-- **Autor**: Devin, a partir de `../stockproof-vault/MVP.md` (primera ventana) y `Plan.md` (ola 1–2)
+- **Autor**: Devin, a partir de `../vault-stockproof/MVP.md` (primera ventana) y `Plan.md` (ola 1–2)
 - **Cubre**: issues #2 (cliente firmado), #7 (cotización para la pregunta 2) y #9 (conectar la pantalla a `evaluate`), en la parte que arma `EvaluateInput`.
 
 ## Contexto y problema

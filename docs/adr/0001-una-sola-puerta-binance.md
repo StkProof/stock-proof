@@ -3,7 +3,7 @@
 - **Estado**: propuesto (pasa a aceptado con la aprobación de Agustín)
 - **Fecha**: 2026-09-28
 - **Decidieron**: Lautaro y Agustín
-- **Relacionado**: `specs/registro-llamadas.md`, `../stockproof-vault/Plan.md` (ola 0)
+- **Relacionado**: `specs/registro-llamadas.md`, `../vault-stockproof/Plan.md` (ola 0)
 
 ## Contexto
 

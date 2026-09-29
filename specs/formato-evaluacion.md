@@ -3,7 +3,7 @@
 - **Estado**: borrador (la aprueban los tres: Agustín, Lautaro y Luciano)
 - **Fecha**: 2026-09-28
 - **Aprobación**: pendiente. La issue #1 dice «los tres juntos»: este documento se aprueba en el pull request con la aprobación de los tres, y bloquea al resto del tablero hasta entonces.
-- **Autor**: Agustín (coordinación), a partir de `../stockproof-vault/Idea.md`, `../stockproof-vault/MVP.md`, `../stockproof-vault/Diferenciador.md`, `../stockproof-vault/Plan.md` (propuestas de «El punto de encuentro»), `specs/preguntas-1-y-2.md` y el ADR 0002 (`docs/adr/0002-pregunta-1-codigo-de-motivo.md`)
+- **Autor**: Agustín (coordinación), a partir de `../vault-stockproof/Idea.md`, `../vault-stockproof/MVP.md`, `../vault-stockproof/Diferenciador.md`, `../vault-stockproof/Plan.md` (propuestas de «El punto de encuentro»), `specs/preguntas-1-y-2.md` y el ADR 0002 (`docs/adr/0002-pregunta-1-codigo-de-motivo.md`)
 - **Issue**: #1
 
 ## Contexto y problema
