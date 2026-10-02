@@ -25,6 +25,36 @@ async function evaluar(
   await page.getByRole("button", { name: "Evaluar" }).click();
 }
 
+test("la home editorial muestra la frase y el formulario", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "Ves la compra.",
+  );
+  await expect(page.getByLabel("Ticker")).toBeVisible();
+  await expect(page.getByLabel("Monto en USD")).toBeVisible();
+  await expect(page.getByLabel(/Dirección del contrato/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Evaluar" })).toBeVisible();
+  await expect(page.getByTestId("resultado")).toHaveCount(0);
+});
+
+test("en 390px la home no se desborda y el menú abre la navegación", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  const overflows = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth >
+      document.documentElement.clientWidth + 1,
+  );
+  expect(overflows).toBe(false);
+
+  await page.getByRole("button", { name: "Abrir navegación" }).click();
+  await expect(page.getByRole("link", { name: "El producto" })).toBeVisible();
+});
+
 test("al pasar las cuatro preguntas muestra el emisor, el costo y el bloque de salida", async ({
   page,
 }) => {

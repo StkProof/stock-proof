@@ -72,3 +72,13 @@ const CONSTRAINT_TEXT: Record<ConstraintCode, string> = {
 export function constraintText(code: ConstraintCode): string {
   return CONSTRAINT_TEXT[code] ?? "un tope de la frase";
 }
+
+const QUOTE_GAP_TEXT: Record<string, string> = {
+  NOT_LISTED: "no figura en la lista oficial",
+  NO_QUOTE: "no devolvió cotización",
+};
+
+/** Hueco de cotización a frase. Un motivo desconocido no se muestra crudo. */
+export function quoteGapText(reason: string): string {
+  return QUOTE_GAP_TEXT[reason] ?? "sin cotización, por un motivo no reconocido";
+}

@@ -2,6 +2,7 @@ import type {
   Evaluation,
   ExitBlock,
   Quote,
+  QuoteGap,
   Reference,
   Regime,
 } from "@/lib/evaluate";
@@ -18,6 +19,7 @@ import {
   marketStatusText,
   multiplierNoteText,
   QUESTION_TEXT,
+  quoteGapText,
   reasonText,
   SIN_DATO,
   WRAPPER_LABEL,
@@ -82,6 +84,7 @@ export function EvaluationResult({ evaluation }: { evaluation: Evaluation }) {
   const verdict = VERDICT[evaluation.kind];
   return (
     <section data-testid="resultado" className={styles.result} aria-live="polite">
+      <p className={styles.kicker}>04 / Prueba</p>
       <p className={`${styles.verdict} ${verdict.className}`}>{verdict.title}</p>
       <QuestionList evaluation={evaluation} />
       <EvaluationDetail evaluation={evaluation} />
@@ -129,6 +132,7 @@ function EvaluationDetail({ evaluation }: { evaluation: Evaluation }) {
             {QUESTION_TEXT[evaluation.question]}): {reasonText(evaluation.reason)}
           </p>
           <p>Sin inventar un precio, no se arma la transacción.</p>
+          <QuoteGaps gaps={evaluation.quoteGaps} />
         </div>
       );
     case "cut":
@@ -163,6 +167,7 @@ function CutDetail({
       {evaluation.question === 4 && (
         <RegimeDetail regime={evaluation.regime} />
       )}
+      {"quoteGaps" in evaluation && <QuoteGaps gaps={evaluation.quoteGaps} />}
       <p>No se arma la transacción.</p>
     </div>
   );
@@ -206,6 +211,7 @@ function PassDetail({
           </p>
         )}
       <QuotesTable quotes={evaluation.quotes} />
+      <QuoteGaps gaps={evaluation.quoteGaps} />
       <ReferenceDetail reference={evaluation.reference} />
       <RegimeDetail regime={evaluation.regime} />
       <ExitBlockView exit={evaluation.exit} />
@@ -225,6 +231,22 @@ function authenticityText(authenticity: Q1Result): string {
   if (authenticity.ok) return "Verificado";
   if (isUnavailableReason(authenticity.reason)) return SIN_DATO;
   return "No pasó";
+}
+
+function QuoteGaps({ gaps }: { gaps?: QuoteGap[] }) {
+  if (gaps === undefined || gaps.length === 0) return null;
+  return (
+    <div>
+      <h3 className={styles.detailHeading}>Sin cotización</h3>
+      <ul className={styles.gaps} data-testid="huecos-de-cotizacion">
+        {gaps.map((gap) => (
+          <li key={gap.wrapper}>
+            {WRAPPER_LABEL[gap.wrapper]}: {quoteGapText(gap.reason)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function QuotesTable({ quotes }: { quotes: Quote[] }) {
