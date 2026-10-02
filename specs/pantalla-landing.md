@@ -50,7 +50,7 @@ La pantalla no vuelve a decidir el corte ni recalcula costos.
 - Tailwind, Framer Motion o Next distinto del de esta app.
 - Cambiar `lib/evaluate.ts`, el formato congelado o los textos de motivo que ya existen.
 - Habilitar la firma. El botón sigue visible y deshabilitado.
-- Pedir un tope de costo en la frase. Los `constraints` se muestran si el resultado ya los trae.
+- Pedir un tope de costo en la frase. Eso lo cubre `specs/textos-motivo-y-frase.md`. Acá los `constraints` se muestran si el resultado ya los trae.
 
 ## Decisiones técnicas
 

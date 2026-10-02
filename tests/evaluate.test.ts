@@ -737,6 +737,10 @@ describe("evaluate", () => {
       reason: "EXIT_OVER_LIMIT",
     });
     expect(evaluationExamples.pass).toMatchObject({ kind: "pass", wrapper: "bstocks" });
+    expect(evaluationExamples.passTopeFrase).toMatchObject({
+      kind: "pass",
+      constraints: { violated: ["MAX_IMPACT_RATIO"] },
+    });
     expect(evaluationExamples.passThinNameSinDato).toMatchObject({
       kind: "pass",
       regime: { marketStatus: "closed", bookFrozen: true },

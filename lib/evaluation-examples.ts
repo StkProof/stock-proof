@@ -159,6 +159,30 @@ export const evaluationExamples = {
   }),
 
   /**
+   * Las cuatro preguntas pasan, pero el tope de la frase (0,3 %) queda por debajo
+   * del impacto ganador (0,4 %). `evaluate` no corta: lo anota para el agente.
+   */
+  passTopeFrase: evaluate({
+    ticker: "QQQB",
+    amountUsd: 200,
+    quotes: quotes(0.004, 0.008, 0.012),
+    exits: exits(
+      { bstocks: sell(198.4, 0.008), ondo: sell(197.6, 0.012), xstocks: "unavailable" },
+      { bstocks: bstocksAvailability },
+    ),
+    reference: prices({
+      bstocks: { tokenPriceUsd: 500.12, referenceUsd: 500.12, sharesMultiplier: 1.0008 },
+    }),
+    regime: {
+      marketStatus: "closed",
+      nextOpenAt: "2026-09-28T13:30:00Z",
+      poolsDiffRatio: 0.0002,
+      bookFrozen: false,
+    },
+    constraints: { maxImpactRatio: 0.003 },
+  }),
+
+  /**
    * Nombre fino un sábado con monto chico (escena 5): la venta de US$ 45 sí se midió
    * bajo el tope, así que firma, pero el mercado está cerrado, el libro queda clavado
    * en el comprobante y la disponibilidad de salida llega en «sin dato».

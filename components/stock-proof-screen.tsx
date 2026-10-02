@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import type { Evaluation } from "@/lib/evaluate";
 import { evaluationExamples } from "@/lib/evaluation-examples";
+import { impactRatioFromPercent } from "@/lib/phrase";
 import { EvaluationResult } from "./evaluation-result";
 
 type SceneKey = keyof typeof evaluationExamples;
@@ -17,6 +18,10 @@ const SCENES: { key: SceneKey; label: string }[] = [
   {
     key: "passThinNameSinDato",
     label: "Pasa: nombre fino un sábado, con «sin dato» (SPCXB, US$ 45)",
+  },
+  {
+    key: "passTopeFrase",
+    label: "Pasa, pero el tope de la frase no se cumple (QQQB, US$ 200)",
   },
   {
     key: "cutQuestion1",
@@ -41,10 +46,13 @@ export function StockProofScreen() {
   const [ticker, setTicker] = useState("");
   const [amount, setAmount] = useState("");
   const [address, setAddress] = useState("");
+  const [limit, setLimit] = useState("1");
+  const [limitError, setLimitError] = useState(false);
   const [result, setResult] = useState<Evaluation | null>(null);
   const [loading, setLoading] = useState(false);
   const tickerRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
+  const limitRef = useRef<HTMLInputElement>(null);
 
   const tickerInvalid = result?.kind === "invalid" && ticker.trim().length === 0;
   const amountInvalid = result?.kind === "invalid" && !tickerInvalid;
@@ -52,6 +60,7 @@ export function StockProofScreen() {
   function edit(update: () => void) {
     update();
     setResult(null);
+    setLimitError(false);
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -62,6 +71,13 @@ export function StockProofScreen() {
       setResult(evaluationExamples.invalid);
       if (ticker.trim().length === 0) tickerRef.current?.focus();
       else amountRef.current?.focus();
+      return;
+    }
+    const maxImpactRatio = impactRatioFromPercent(limit);
+    if (maxImpactRatio === null) {
+      setLimitError(true);
+      setResult(null);
+      limitRef.current?.focus();
       return;
     }
     if (scene !== LIVE) {
@@ -78,6 +94,9 @@ export function StockProofScreen() {
           ticker: ticker.trim(),
           amountUsd,
           ...(address.trim().length > 0 ? { address: address.trim() } : {}),
+          ...(maxImpactRatio === undefined
+            ? {}
+            : { maxImpactPercent: limit.trim().replace(",", ".") }),
         }),
       });
       setResult((await response.json()) as Evaluation);
@@ -108,23 +127,7 @@ export function StockProofScreen() {
           <span className="mono muted">01 / Empezá por la intención</span>
           <form onSubmit={onSubmit}>
             <p className="intent-sentence">
-              Comprar{" "}
-              <label className="inline-field">
-                <input
-                  ref={tickerRef}
-                  name="ticker"
-                  aria-label="Ticker"
-                  type="text"
-                  placeholder="QQQB"
-                  autoComplete="off"
-                  spellCheck={false}
-                  aria-invalid={tickerInvalid || undefined}
-                  style={{ width: `${Math.max(4, ticker.length || 4) * 1.8}ch` }}
-                  value={ticker}
-                  onChange={(event) => edit(() => setTicker(event.target.value))}
-                />
-              </label>{" "}
-              por{" "}
+              Comprame US${" "}
               <label className="inline-field">
                 <input
                   ref={amountRef}
@@ -140,9 +143,47 @@ export function StockProofScreen() {
                   onChange={(event) => edit(() => setAmount(event.target.value))}
                 />
               </label>{" "}
-              USD.
+              de{" "}
+              <label className="inline-field">
+                <input
+                  ref={tickerRef}
+                  name="ticker"
+                  aria-label="Ticker"
+                  type="text"
+                  placeholder="NVDA"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-invalid={tickerInvalid || undefined}
+                  style={{ width: `${Math.max(4, ticker.length || 4) * 1.8}ch` }}
+                  value={ticker}
+                  onChange={(event) => edit(() => setTicker(event.target.value))}
+                />
+              </label>{" "}
+              si el contrato es el real y el costo no supera el{" "}
+              <label className="inline-field">
+                <input
+                  ref={limitRef}
+                  name="tope"
+                  aria-label="Tope de costo"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="1"
+                  autoComplete="off"
+                  aria-invalid={limitError || undefined}
+                  aria-describedby={limitError ? "error-tope" : undefined}
+                  style={{ width: `${Math.max(1, limit.length || 1) * 1.6}ch` }}
+                  value={limit}
+                  onChange={(event) => edit(() => setLimit(event.target.value))}
+                />
+              </label>{" "}
+              %.
             </p>
-            <p className="input-hint">Tu ticker. Tu monto. Tu decisión.</p>
+            {limitError && (
+              <p id="error-tope" className="input-hint">
+                El tope tiene que ser un porcentaje mayor a cero y como máximo 100.
+              </p>
+            )}
+            <p className="input-hint">Tu ticker. Tu monto. Tu tope. Tu decisión.</p>
             <div className="secondary-fields">
               <label>
                 Dirección del contrato a revisar (opcional)

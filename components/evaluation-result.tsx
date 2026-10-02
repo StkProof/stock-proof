@@ -22,6 +22,7 @@ import {
   QUESTION_TEXT,
   quoteGapText,
   reasonText,
+  signalText,
   SIN_DATO,
   WRAPPER_LABEL,
 } from "./messages";
@@ -491,8 +492,8 @@ function ExitBlockView({ exit }: { exit: ExitBlock }) {
           ) : (
             <ul>
               {exit.risk.map((signal) => (
-                <li key={signal.code}>
-                  <code>{signal.code}</code>: {signalValueText(signal.value)} —{" "}
+                <li key={`${signal.code}-${signal.observedAt}`}>
+                  {signalText(signal.code)}: {signalValueText(signal.value)} —{" "}
                   <SourceText source={signal.source} />,{" "}
                   {formatUtcDateTime(signal.observedAt)}
                 </li>

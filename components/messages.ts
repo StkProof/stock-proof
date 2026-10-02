@@ -2,7 +2,7 @@ import type { ConstraintCode, QuestionId, WrapperId } from "@/lib/evaluate";
 
 /**
  * Textos de la pantalla (la lógica devuelve códigos; el castellano lo escribe acá).
- * Provisionales: Luciano los afina en la issue #21.
+ * Frases de motivo y de señal: `specs/textos-motivo-y-frase.md`.
  */
 
 /** Lectura en pantalla de cualquier `"unavailable"`: «sin dato». */
@@ -31,12 +31,27 @@ const REASON_TEXT: Record<string, string> = {
   EXIT_OVER_LIMIT: "Vender este monto ahora cuesta más del 1%: ese emisor no tiene salida bajo el tope.",
   EXIT_NOW_UNAVAILABLE: "La venta de este monto no se pudo medir: no hay salida medible.",
   // Pregunta 3
-  DEVIATION_UNEXPLAINED: "El precio del token no es el de la acción y no lo explica ni el multiplicador ni el retorno total.",
-  TOKEN_PRICE_UNAVAILABLE: "No se pudo obtener el precio del token en la ruta.",
-  REFERENCE_PRICE_UNAVAILABLE: "No se pudo obtener el precio de referencia de la acción.",
+  PRICE_MATCHES: "El precio del token coincide con el de la acción.",
+  DEVIATION_IS_MULTIPLIER: "El desvío es el multiplicador de acciones.",
+  DEVIATION_IS_TOTAL_RETURN:
+    "El token es de retorno total: su precio no tiene que coincidir con la cotización.",
+  DEVIATION_UNEXPLAINED:
+    "El precio del token no coincide con el de la acción y no hay una causa que lo explique.",
+  TOKEN_PRICE_UNAVAILABLE: "No se pudo leer el precio del token.",
+  REFERENCE_PRICE_UNAVAILABLE: "No se pudo leer el precio de la acción.",
   // Pregunta 4
   POOLS_DISAGREE: "Los pools de este ticker no coinciden entre sí.",
 };
+
+const SIGNAL_TEXT: Record<string, string> = {
+  POOL_DISPERSION: "Dispersión entre pools",
+  OFF_HOURS_WEEKEND: "Fuera del horario del emisor",
+};
+
+/** Señal de riesgo a frase. Un código desconocido no se muestra crudo. */
+export function signalText(code: string): string {
+  return SIGNAL_TEXT[code] ?? "Señal sin nombre reconocido.";
+}
 
 /**
  * Un código de motivo a frase corta. Un código que la pantalla no conozca se muestra
