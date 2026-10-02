@@ -1,102 +1,46 @@
-.screen {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.title {
-  margin: 0;
-  font-size: 2rem;
-}
-
-.tagline {
-  margin: 0;
-  color: #444;
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 0.5rem;
-}
-
-.fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 1rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.field input,
-.field select {
-  padding: 0.5rem;
-  font-size: 1rem;
-  font-weight: 400;
-  border: 1px solid #bbb;
-  border-radius: 0.375rem;
-}
-
-.submit {
-  align-self: flex-start;
-  padding: 0.5rem 1.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #fff;
-  background: #1a1a1a;
-  border: none;
-  border-radius: 0.375rem;
-  cursor: pointer;
-}
-
 .result {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.kicker {
+  margin: 0;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .verdict {
   margin: 0;
-  padding: 0.75rem 1rem;
-  font-size: 1.125rem;
-  font-weight: 700;
-  border-radius: 0.5rem;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
 }
 
 .verdictPass {
-  color: #14532d;
-  background: #dcfce7;
-  border: 1px solid #86efac;
+  color: var(--ok);
 }
 
 .verdictCut {
-  color: #7f1d1d;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  color: var(--stop);
 }
 
 .verdictUnknown {
-  color: #3f3f46;
-  background: #e4e4e7;
-  border: 1px solid #a1a1aa;
+  color: var(--ink);
 }
 
 .questions {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
+  border-top: 1px solid var(--ink);
 }
 
 .question {
@@ -104,196 +48,207 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 1rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ddd;
-  border-left-width: 0.375rem;
-  border-radius: 0.375rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.qPassed {
-  border-left-color: #16a34a;
-}
-
-.qCut {
-  border-left-color: #dc2626;
-}
-
-.qUnknown {
-  border-left-color: #a1a1aa;
-}
-
-.qSkipped {
-  border-left-color: #e4e4e7;
-  color: #71717a;
+.questionText {
+  min-width: 0;
 }
 
 .questionStatus {
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
 .qPassed .questionStatus {
-  color: #15803d;
+  color: var(--ok);
 }
 
 .qCut .questionStatus {
-  color: #b91c1c;
+  color: var(--stop);
 }
 
 .qUnknown .questionStatus,
 .qSkipped .questionStatus {
-  color: #71717a;
+  color: var(--muted);
+}
+
+.qSkipped {
+  color: var(--muted);
 }
 
 .detail {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-width: 0;
 }
 
 .detail > p {
   margin: 0;
 }
 
+.detailHeading {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+}
+
 .summary,
 .detailList {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 0.5rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem 1.25rem;
   margin: 0;
-  padding: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 0.5rem;
+  padding: 0 0 0.25rem;
+  border-bottom: 1px solid var(--line);
 }
 
 .summary div,
 .detailList div {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .summary dt,
-.detailList dt {
-  font-size: 0.75rem;
-  font-weight: 600;
+.detailList dt,
+.exitLayer dt {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #71717a;
+  color: var(--muted);
 }
 
 .summary dd,
-.detailList dd {
+.detailList dd,
+.exitLayer dd {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
-.detailList h3 {
+.detailList h3,
+.exit > h3 {
   grid-column: 1 / -1;
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 1.15rem;
+  font-weight: 400;
+  letter-spacing: -0.03em;
 }
 
 .quotes {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.95rem;
+  font-size: 0.875rem;
+  table-layout: fixed;
 }
 
 .quotes th,
 .quotes td {
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.35rem 0.55rem 0;
   text-align: left;
-  border-bottom: 1px solid #e4e4e7;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  vertical-align: top;
 }
 
 .quotes th {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.625rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #71717a;
+  color: var(--muted);
+}
+
+.gaps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
 }
 
 .exit {
-  padding: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 0.5rem;
+  min-width: 0;
 }
 
 .exit > h3 {
-  margin: 0 0 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .exitLayers {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   gap: 1rem;
 }
 
 .exitLayer {
-  padding: 0.75rem;
-  border: 1px solid #e4e4e7;
-  border-radius: 0.375rem;
+  min-width: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
 }
 
 .exitLayer h4 {
-  margin: 0 0 0.5rem;
-  font-size: 0.875rem;
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  font-weight: 400;
 }
 
 .exitLayer dl,
 .exitLayer ul {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
   margin: 0;
   padding: 0;
 }
 
 .exitLayer ul {
   list-style: none;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 
 .exitLayer div {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
-}
-
-.exitLayer dt {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #71717a;
-}
-
-.exitLayer dd {
-  margin: 0;
-  font-size: 0.9rem;
+  gap: 0.15rem;
 }
 
 .exitLayer p {
   margin: 0;
-  color: #71717a;
+  color: var(--muted);
 }
 
 .signButton {
-  padding: 0.625rem 2rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #fff;
-  background: #52525b;
-  border: none;
-  border-radius: 0.375rem;
+  min-height: 2.75rem;
+  padding: 0.7rem 1.25rem;
+  font-size: 0.875rem;
+  color: var(--paper);
+  background: var(--muted);
+  border: 1px solid var(--muted);
   cursor: not-allowed;
-  opacity: 0.7;
 }
 
 .note {
-  margin: 0.25rem 0 0;
-  font-size: 0.8rem;
-  color: #71717a;
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .exitLayers,
+  .summary,
+  .detailList {
+    grid-template-columns: 1fr;
+  }
 }
