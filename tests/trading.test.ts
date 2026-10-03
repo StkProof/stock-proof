@@ -59,6 +59,21 @@ describe("getAggregatedQuote", () => {
     expect(fetchSpy.mock.calls[0][0]).toContain("https://web3.binance.com/build/api/v1/dex/aggregator/quote");
   });
 
+  it("conserva toTokenAmount exacto aunque supere 2^53 (la venta lo usa como amount)", async () => {
+    const wei = "1234567890123456789012";
+    fetchSpy.mockResolvedValue(json([{ toTokenAmount: wei, priceImpactPercent: "0.1" }]));
+
+    const quote = await getAggregatedQuote(
+      { fromTokenAddress: USDT_BSC, toTokenAddress: NVDAB, amount: "200", wrapper: "bstocks" },
+      deps,
+    );
+
+    expect(quote).not.toBe("unavailable");
+    if (quote === "unavailable") return;
+    expect(quote.toTokenAmount).toBe(wei);
+    expect(String(Number(wei))).not.toBe(wei);
+  });
+
   it("manda userWalletAddress en el query firmado solo cuando viene walletAddress", async () => {
     fetchSpy.mockResolvedValue(json([{ toTokenAmount: "1", priceImpactPercent: "0.1" }]));
     const signed: SignRequest = vi.fn(async () => ({}));

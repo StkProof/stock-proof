@@ -228,6 +228,8 @@ describe("evaluate", () => {
     // El bloque de salida del ganador es su venta medida.
     passOrFail(result);
     expect(result.exit.now).toEqual(sell(0.008));
+    // Sin datos de régimen la pregunta 4 no corta: queda declarada «sin dato».
+    expect(result.regime.marketStatus).toBe("unavailable");
   });
 
   it("acepta una compra y una venta exactamente del 1%", () => {

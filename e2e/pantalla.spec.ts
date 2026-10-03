@@ -128,10 +128,40 @@ test("corta en la pregunta 2 y muestra los costos de los tres emisores", async (
   await expect(cotizaciones).toContainText("bStocks");
   await expect(cotizaciones).toContainText("Ondo");
   await expect(cotizaciones).toContainText("xStocks");
-  // Tres filas con su costo simulado en USD.
-  await expect(cotizaciones.getByText(/US\$/)).toHaveCount(3);
+  // Tres filas, cada una con su costo simulado en USD.
+  const filas = cotizaciones.locator("tbody tr");
+  await expect(filas).toHaveCount(3);
+  for (const fila of await filas.all()) {
+    await expect(fila).toContainText("US$");
+  }
+  // La venta del mismo monto: medida en bStocks, sin dato en xStocks.
+  await expect(cotizaciones).toContainText("Salida ahora");
+  await expect(filas.filter({ hasText: "bStocks" })).toContainText("US$ 9.500");
+  await expect(filas.filter({ hasText: "xStocks" })).toContainText("sin dato");
 
   // Sin botón de firma.
+  await expect(
+    page.getByRole("button", { name: "Firmar swap" }),
+  ).not.toBeVisible();
+});
+
+test("corta en la pregunta 2 cuando la compra entra pero la venta supera el tope", async ({
+  page,
+}) => {
+  await evaluar(page, { ticker: "SPCXB", monto: "2000", escena: "cutExitNow" });
+
+  const resultado = page.getByTestId("resultado");
+  await expect(resultado).toContainText("No hay transacción");
+  await expect(page.getByTestId("pregunta-2")).toContainText("No pasó");
+  await expect(resultado).toContainText("Vender este monto ahora cuesta más del 1%");
+
+  // El costo de la venta medida se muestra en la tabla.
+  const bstocks = page
+    .getByTestId("cotizaciones")
+    .locator("tbody tr")
+    .filter({ hasText: "bStocks" });
+  await expect(bstocks).toContainText("US$ 1.952");
+
   await expect(
     page.getByRole("button", { name: "Firmar swap" }),
   ).not.toBeVisible();
