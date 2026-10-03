@@ -3,39 +3,53 @@ import { expect, test, type Page } from "@playwright/test";
 async function evaluar(
   page: Page,
   {
-    ticker = "QQQB",
-    monto = "200",
+    ticker,
+    monto,
     direccion,
     escena,
   }: { ticker?: string; monto?: string; direccion?: string; escena?: string } = {},
 ) {
-  await page.goto("/");
-  if (ticker !== "") {
+  await page.goto("/operar");
+  if (escena !== undefined) {
+    await page.locator('select[name="escena"]').selectOption(escena);
+  }
+  if (ticker !== undefined) {
     await page.getByLabel("Ticker").fill(ticker);
   }
-  if (monto !== "") {
+  if (monto !== undefined) {
     await page.getByLabel("Monto en USD").fill(monto);
   }
   if (direccion !== undefined) {
+    const field = page.getByLabel(/Dirección del contrato/);
+    if ((await field.count()) === 0) {
+      await page.getByRole("button", { name: "Revisar un contrato" }).click();
+    }
     await page.getByLabel(/Dirección del contrato/).fill(direccion);
-  }
-  if (escena !== undefined) {
-    await page.locator('select[name="escena"]').selectOption(escena);
   }
   await page.getByRole("button", { name: "Evaluar" }).click();
 }
 
-test("la home editorial muestra la frase y el formulario", async ({ page }) => {
+test("la portada cuenta la historia y deja la operación en otra ruta", async ({
+  page,
+}) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "Ves la compra.",
   );
-  await expect(page.getByLabel("Ticker")).toBeVisible();
-  await expect(page.getByLabel("Monto en USD")).toBeVisible();
-  await expect(page.getByLabel(/Dirección del contrato/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Evaluar" })).toBeVisible();
+  await expect(page.getByLabel("Ticker")).toHaveCount(0);
   await expect(page.getByTestId("resultado")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Probar", exact: true })).toHaveAttribute(
+    "href",
+    "/operar",
+  );
+  await expect(page.getByRole("link", { name: "Ver la operación" })).toHaveAttribute(
+    "href",
+    "/operar",
+  );
+  await expect(
+    page.getByRole("link", { name: "Probar una evaluación" }),
+  ).toHaveAttribute("href", "/operar");
 });
 
 test("en 390px la home no se desborda y el menú abre la navegación", async ({
@@ -55,8 +69,68 @@ test("en 390px la home no se desborda y el menú abre la navegación", async ({
   await expect(page.getByRole("link", { name: "El producto" })).toBeVisible();
 });
 
+test("en 390px la operación no se desborda", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/operar");
+
+  const overflows = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth >
+      document.documentElement.clientWidth + 1,
+  );
+  expect(overflows).toBe(false);
+});
+
+test("la operación abre con el caso que pasa, sin un clic", async ({ page }) => {
+  await page.goto("/operar");
+
+  await expect(page.getByText(/si el contrato es el real/)).toBeVisible();
+  await expect(page.getByLabel("Ticker")).toHaveValue("QQQB");
+  await expect(page.getByLabel("Monto en USD")).toHaveValue("200");
+  await expect(page.getByLabel("Tope de costo")).toHaveValue("1");
+  await expect(page.getByLabel(/Dirección del contrato/)).toHaveCount(0);
+
+  const resultado = page.getByTestId("resultado");
+  await expect(resultado).toContainText("Se puede firmar");
+  for (const id of [1, 2, 3, 4]) {
+    await expect(page.getByTestId(`pregunta-${id}`)).toContainText("Pasó");
+  }
+  await expect(page.getByTestId("salida-riesgo")).toContainText("sin dato");
+  await expect(page.getByTestId("salida-riesgo")).not.toContainText("POOL_DISPERSION");
+  await expect(page.getByRole("button", { name: "Firmar swap" })).toBeDisabled();
+  await expect(page.getByRole("link", { name: "StockProof, inicio" })).toHaveAttribute(
+    "href",
+    "/",
+  );
+});
+
+test("en vivo no consulta hasta apretar Evaluar", async ({ page }) => {
+  let calls = 0;
+  await page.route("**/api/evaluate", async (route) => {
+    calls += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        kind: "unavailable",
+        question: 1,
+        reason: "LIST_UNAVAILABLE",
+      }),
+    });
+  });
+  await page.goto("/operar");
+  expect(calls).toBe(0);
+
+  await page.locator('select[name="escena"]').selectOption("live");
+  await expect(page.getByTestId("resultado")).toHaveCount(0);
+  expect(calls).toBe(0);
+
+  await page.getByRole("button", { name: "Evaluar" }).click();
+  await expect.poll(() => calls).toBe(1);
+});
+
 test("la frase pide el contrato real y un tope de costo", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/operar");
 
   await expect(page.getByText(/si el contrato es el real/)).toBeVisible();
   await expect(page.getByLabel("Tope de costo")).toHaveValue("1");
@@ -88,7 +162,7 @@ for (const { tope, esperado } of [
       });
     });
 
-    await page.goto("/");
+    await page.goto("/operar");
     await page.getByLabel("Ticker").fill("NVDA");
     await page.getByLabel("Monto en USD").fill("200");
     await page.getByLabel("Tope de costo").fill(tope);
@@ -108,7 +182,7 @@ for (const { tope, esperado } of [
 test("al pasar las cuatro preguntas muestra el emisor, el costo y el bloque de salida", async ({
   page,
 }) => {
-  await evaluar(page);
+  await page.goto("/operar");
 
   const resultado = page.getByTestId("resultado");
   await expect(resultado).toContainText("Se puede firmar");
@@ -170,7 +244,8 @@ test("corta en la pregunta 1 con motivo en castellano y el contrato revisado", a
 test("corta en la pregunta 2 y muestra los costos de los tres emisores", async ({
   page,
 }) => {
-  await evaluar(page, { ticker: "NVDA", monto: "10000", escena: "cutQuestion2" });
+  await page.goto("/operar");
+  await page.locator('select[name="escena"]').selectOption("cutQuestion2");
 
   const resultado = page.getByTestId("resultado");
   await expect(resultado).toContainText("No hay transacción");

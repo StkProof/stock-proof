@@ -9,7 +9,7 @@ const LINKS = [
   { href: "#desarrolladores", label: "Para quien integra" },
 ];
 
-export function SiteHeader() {
+export function SiteHeader({ mode = "story" }: { mode?: "story" | "product" }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -22,31 +22,35 @@ export function SiteHeader() {
   }, [open]);
 
   return (
-    <header className="header section-shell">
+    <header className={mode === "product" ? "header product-header section-shell" : "header section-shell"}>
       <a href="#main" className="skip-link">
         Saltar al contenido
       </a>
-      <Wordmark />
-      <nav className={open ? "nav open" : "nav"} aria-label="Principal">
-        {LINKS.map((link) => (
-          <a key={link.href} href={link.href} onClick={() => setOpen(false)}>
-            {link.label}
-          </a>
-        ))}
-      </nav>
-      <a className="nav-cta" href="#demo">
-        Probar
+      <Wordmark href={mode === "product" ? "/" : "#top"} />
+      {mode === "story" && (
+        <nav className={open ? "nav open" : "nav"} aria-label="Principal">
+          {LINKS.map((link) => (
+            <a key={link.href} href={link.href} onClick={() => setOpen(false)}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
+      )}
+      <a className="nav-cta" href={mode === "product" ? "/" : "/operar"}>
+        {mode === "product" ? "La historia" : "Probar"}
         <span aria-hidden="true">↗</span>
       </a>
-      <button
-        className="menu-toggle"
-        type="button"
-        aria-expanded={open}
-        aria-label={open ? "Cerrar navegación" : "Abrir navegación"}
-        onClick={() => setOpen((value) => !value)}
-      >
-        {open ? "Cerrar" : "Menú"}
-      </button>
+      {mode === "story" && (
+        <button
+          className="menu-toggle"
+          type="button"
+          aria-expanded={open}
+          aria-label={open ? "Cerrar navegación" : "Abrir navegación"}
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open ? "Cerrar" : "Menú"}
+        </button>
+      )}
     </header>
   );
 }
