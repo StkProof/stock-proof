@@ -10,6 +10,7 @@ import {
   type WrapperId,
 } from "@/lib/evaluate";
 import { evaluationExamples } from "@/lib/evaluation-examples";
+import { impactRatioFromPercent } from "@/lib/phrase";
 import type { Q1Result } from "@/lib/questions/q1-reasons";
 import type { Q3Input } from "@/lib/questions/q3";
 
@@ -715,6 +716,24 @@ describe("evaluate", () => {
     ]);
   });
 
+  it("un tope de la frase igual al impacto ganador no se viola («no supera el»)", () => {
+    // Las dos puntas dividen el porcentaje por 100, como la pantalla y `trading.ts`.
+    const maxImpactRatio = impactRatioFromPercent("0,7");
+    expect(typeof maxImpactRatio).toBe("number");
+    const result = evaluate({
+      ticker: "NVDA",
+      amountUsd: 200,
+      quotes: quotes(0.7 / 100, 0.008, 0.012, { xstocks: LIST_DOWN }),
+      exits: LIQUID_EXITS,
+      reference: MATCHING_PRICES,
+      constraints: { maxImpactRatio: maxImpactRatio as number },
+    });
+
+    passOrFail(result);
+    expect(result.wrapper).toBe("bstocks");
+    expect(result.constraints).toEqual({ violated: [] });
+  });
+
   it("los ejemplos de la pantalla cubren los estados y el bloque de salida", () => {
     expect(evaluationExamples.invalid.kind).toBe("invalid");
     expect(evaluationExamples.unavailable).toMatchObject({
@@ -737,6 +756,10 @@ describe("evaluate", () => {
       reason: "EXIT_OVER_LIMIT",
     });
     expect(evaluationExamples.pass).toMatchObject({ kind: "pass", wrapper: "bstocks" });
+    expect(evaluationExamples.passTopeFrase).toMatchObject({
+      kind: "pass",
+      constraints: { violated: ["MAX_IMPACT_RATIO"] },
+    });
     expect(evaluationExamples.passThinNameSinDato).toMatchObject({
       kind: "pass",
       regime: { marketStatus: "closed", bookFrozen: true },

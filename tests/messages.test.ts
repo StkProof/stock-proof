@@ -2,9 +2,16 @@ import { describe, expect, it } from "vitest";
 import { Q2_CUT_REASONS, WRAPPERS, type QuestionId } from "@/lib/evaluate";
 import { Q1_CUT_REASONS, Q1_UNAVAILABLE_REASONS } from "@/lib/questions/q1-reasons";
 import {
+  Q3_CUT_REASONS,
+  Q3_PASS_CODES,
+  Q3_UNAVAILABLE_REASONS,
+} from "@/lib/questions/q3-reasons";
+import { Q4_CUT_REASONS } from "@/lib/questions/q4-reasons";
+import {
   QUESTION_TEXT,
   quoteGapText,
   reasonText,
+  signalText,
   WRAPPER_LABEL,
 } from "@/components/messages";
 
@@ -14,6 +21,10 @@ describe("reasonText", () => {
     ...Q1_UNAVAILABLE_REASONS,
     ...Q2_CUT_REASONS,
     "QUOTES_UNAVAILABLE",
+    ...Q3_PASS_CODES,
+    ...Q3_CUT_REASONS,
+    ...Q3_UNAVAILABLE_REASONS,
+    ...Q4_CUT_REASONS,
   ];
 
   it("todo código conocido tiene frase en castellano", () => {
@@ -28,6 +39,21 @@ describe("reasonText", () => {
     const text = reasonText("CODIGO_QUE_NO_EXISTE");
     expect(text).toBe("Motivo no reconocido.");
     expect(text).not.toContain("CODIGO_QUE_NO_EXISTE");
+  });
+});
+
+describe("signalText", () => {
+  it("traduce las señales que ya muestra la pantalla y no deja el código crudo", () => {
+    expect(signalText("POOL_DISPERSION")).toBe("Dispersión entre pools");
+    expect(signalText("OFF_HOURS_WEEKEND")).toBe("Fuera del horario del emisor");
+    expect(signalText("POOL_DISPERSION")).not.toContain("POOL_DISPERSION");
+    expect(signalText("OFF_HOURS_WEEKEND")).not.toContain("OFF_HOURS_WEEKEND");
+  });
+
+  it("una señal desconocida se muestra genérica, nunca cruda", () => {
+    const text = signalText("SENAL_RARA");
+    expect(text).toBe("Señal sin nombre reconocido.");
+    expect(text).not.toContain("SENAL_RARA");
   });
 });
 

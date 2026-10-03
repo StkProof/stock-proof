@@ -39,6 +39,11 @@ export type EvaluateRequest = {
   amountUsd: number;
   /** Contrato puntual a revisar (el que pegó el usuario). Si está, la pregunta 1 decide sobre él. */
   address?: string;
+  /**
+   * Tope de impacto que sale de la frase, en fracción (`0.01` = 1 %).
+   * Se reenvía a `evaluate`. No reemplaza el 1 % de la pregunta 2.
+   */
+  maxImpactRatio?: number;
 };
 
 /**
@@ -126,7 +131,17 @@ export async function buildEvaluateInput(
     reference: reference.length === 0 ? "unavailable" : reference,
     regime,
     ...(exits.length === 0 ? {} : { exits }),
+    ...constraintsField(req.maxImpactRatio),
   };
+}
+
+function constraintsField(
+  maxImpactRatio: number | undefined,
+): { constraints: { maxImpactRatio: number } } | Record<string, never> {
+  if (maxImpactRatio === undefined || !Number.isFinite(maxImpactRatio) || maxImpactRatio <= 0) {
+    return {};
+  }
+  return { constraints: { maxImpactRatio } };
 }
 
 function resolveSources(deps: InputDeps): InputSources {

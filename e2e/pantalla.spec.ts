@@ -55,6 +55,56 @@ test("en 390px la home no se desborda y el menú abre la navegación", async ({
   await expect(page.getByRole("link", { name: "El producto" })).toBeVisible();
 });
 
+test("la frase pide el contrato real y un tope de costo", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByText(/si el contrato es el real/)).toBeVisible();
+  await expect(page.getByLabel("Tope de costo")).toHaveValue("1");
+});
+
+test("un tope que no es un porcentaje pide corregirlo sin evaluar", async ({
+  page,
+}) => {
+  await evaluar(page, { monto: "200" });
+  await page.getByLabel("Tope de costo").fill("0");
+  await page.getByRole("button", { name: "Evaluar" }).click();
+
+  await expect(page.getByText(/porcentaje mayor a cero/)).toBeVisible();
+  await expect(page.getByTestId("resultado")).toHaveCount(0);
+});
+
+for (const { tope, esperado } of [
+  { tope: "0,5", esperado: "0.5" },
+  { tope: "", esperado: undefined },
+]) {
+  test(`en vivo, el tope «${tope}» viaja a la ruta como ${esperado ?? "ausente"}`, async ({
+    page,
+  }) => {
+    const cuerpos: Record<string, unknown>[] = [];
+    await page.route("**/api/evaluate", async (route) => {
+      cuerpos.push(route.request().postDataJSON() as Record<string, unknown>);
+      await route.fulfill({
+        json: { kind: "unavailable", question: 2, reason: "QUOTES_UNAVAILABLE" },
+      });
+    });
+
+    await page.goto("/");
+    await page.getByLabel("Ticker").fill("NVDA");
+    await page.getByLabel("Monto en USD").fill("200");
+    await page.getByLabel("Tope de costo").fill(tope);
+    await page.locator('select[name="escena"]').selectOption("live");
+    await page.getByRole("button", { name: "Evaluar" }).click();
+
+    await expect(page.getByTestId("resultado")).toContainText("No se pudo evaluar");
+    expect(cuerpos).toHaveLength(1);
+    if (esperado === undefined) {
+      expect(cuerpos[0]).not.toHaveProperty("maxImpactPercent");
+    } else {
+      expect(cuerpos[0].maxImpactPercent).toBe(esperado);
+    }
+  });
+}
+
 test("al pasar las cuatro preguntas muestra el emisor, el costo y el bloque de salida", async ({
   page,
 }) => {
@@ -74,11 +124,15 @@ test("al pasar las cuatro preguntas muestra el emisor, el costo y el bloque de s
   await expect(ruta).toContainText("US$");
   await expect(ruta).toContainText("%");
 
-  // El bloque de salida con sus tres capas.
+  // El bloque de salida con sus tres capas. Las señales de riesgo no se miden todavía
+  // (issue #19): la capa dice «sin dato» y no muestra un código crudo.
   const salida = page.getByTestId("bloque-salida");
   await expect(page.getByTestId("salida-ahora")).toContainText("Recuperás");
   await expect(salida).toContainText("Disponibilidad");
   await expect(salida).toContainText("Señales de riesgo");
+  const riesgo = page.getByTestId("salida-riesgo");
+  await expect(riesgo).toContainText("sin dato");
+  await expect(riesgo).not.toContainText("POOL_DISPERSION");
 
   // El botón de firma se ve pero no envía nada.
   await expect(
@@ -220,4 +274,18 @@ test("el pase del nombre fino muestra «sin dato» en la capa que no se midió",
   await expect(page.getByTestId("regimen")).toContainText(
     "conviene partir la orden",
   );
+  const riesgo = page.getByTestId("salida-riesgo");
+  await expect(riesgo).toContainText("sin dato");
+  await expect(riesgo).not.toContainText("OFF_HOURS_WEEKEND");
+});
+
+test("un tope de la frase que no se cumple se anota y la firma sigue a la vista", async ({
+  page,
+}) => {
+  await evaluar(page, { escena: "passTopeFrase" });
+
+  const resultado = page.getByTestId("resultado");
+  await expect(resultado).toContainText("Se puede firmar");
+  await expect(resultado).toContainText("tope de impacto");
+  await expect(page.getByRole("button", { name: "Firmar swap" })).toBeDisabled();
 });

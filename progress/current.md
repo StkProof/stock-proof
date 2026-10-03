@@ -1,77 +1,123 @@
-# Tarea: Cableado de las preguntas 3 y 4 y Exit Now en `evaluate`
+# Tarea: Textos de motivo y frase de tope
 
-- Estado: terminada (spec aprobada por Agustín al pedir el merge, 3 oct 2026)
-- Spec: specs/cableado-evaluate.md (Estado: aprobada; las dos preguntas abiertas quedan para otra tarea)
-- Issue: N/A — sigue a #15, #16, #17 y #18, ya cerradas. Esas tareas dejaron las piezas sueltas; esta las conecta a `evaluate` y al orquestador.
-- Rama: `feat/cableado-evaluate`, rebasada sobre `main` (`8c0860a`, después de #43)
+- Estado: terminada (revisor aprobó en la segunda vuelta, 3 oct 2026)
+- Spec: specs/textos-motivo-y-frase.md (Estado: en implementación — Luciano aprobó el alcance el 2 oct 2026)
+- Rama: `feat/textos-y-frase`, rebasada sobre `main` (`2e05e8b`, después de #45)
+- Issues: #21 y #23. #11 y #20 no se rehacen: se confirman en el tablero.
 - Criterios de aceptación (de la spec):
-  - [x] Venta medida sobre el tope en todos los candidatos: `cut` de la pregunta 2 con `EXIT_OVER_LIMIT` y `exits` (unitario).
-  - [x] Ninguna venta medida: `unavailable` de la pregunta 2 con `EXIT_NOW_UNAVAILABLE` (unitario).
-  - [x] Gana el siguiente firmable y el empate solo cuenta entre firmables (unitario).
-  - [x] Pregunta 3 sobre el ganador: corta con el candidato o queda «sin dato» (unitario).
-  - [x] Pregunta 4: `POOLS_DISAGREE` corta; régimen ausente no corta (unitario).
-  - [x] Venta con el `toTokenAmount` exacto y la wallet del agente; una falla no tumba al resto; `market/status` se lee una vez (unitario).
-  - [x] `toTokenAmount` exacto por encima de 2^53 (unitario).
-  - [x] Columna «Salida ahora» y corte por la venta en pantalla, sin firma (e2e).
-  - [x] `npm run check` en verde (con Node 20, como CI).
-- Plan: rebase sobre #43 → resolver la tabla de cotizaciones (huecos de #43 + columna de salida) → ajustar el e2e que contaba celdas con «US$» → e2e de la escena `cutExitNow` → spec propia → `check` → revisión → PR.
+  - [x] `reasonText` cubre los códigos de las preguntas 3 y 4, sin mostrar el código.
+  - [x] `signalText` traduce `POOL_DISPERSION` y `OFF_HOURS_WEEKEND` (unitario). En las escenas que pasan, `salida-riesgo` dice «sin dato» sin código crudo (e2e).
+  - [x] La oración pide el contrato real y un tope. Un tope inválido no evalúa. En vivo, el tope viaja con punto decimal y no viaja si está vacío (e2e con la ruta interceptada).
+  - [x] `passTopeFrase` muestra «Se puede firmar» y «tope de impacto», con la firma deshabilitada.
+  - [x] `buildEvaluateInput` reenvía el tope solo si es un número finito mayor a cero, y no lo inventa (unitario).
+  - [x] La ruta convierte `maxImpactPercent` a fracción y omite el inválido sin responder 400 (unitario `tests/evaluate-route.test.ts`).
+  - [x] Un tope igual al impacto ganador no se viola (unitario).
+  - [x] `npm run check` en verde (3 oct 2026, Node 20: eslint, tsc, 214 unitarios, 15 e2e).
+- Revisión: ver abajo.
+- Plan: frases en `messages.ts` → señales sin código crudo → tope de la oración y reenvío en la ruta → ejemplo `passTopeFrase` → tests → `npm run check`.
 - Decisiones:
-  - La salida viaja por wrapper (`exits`); el `exit` del `pass` es el del ganador. Motivo y alternativa en la spec.
-  - Las preguntas 3 y 4 corren solo sobre el ganador de la 2: no se cambia de wrapper en silencio (regla del vault, 30 sep 2026).
-  - Venta sin medir es `unavailable`, no `cut`: no se inventa el dato, y tampoco se firma.
+  - La oración dice «no supera el», para coincidir con `impact > maxImpactRatio`. `evaluate` no se toca.
+  - El cuerpo HTTP manda por ciento (`maxImpactPercent`). La entrada de `evaluate` recibe la fracción.
+  - Las escenas de ejemplo ignoran el tope tipeado. La escena por defecto sigue siendo `pass`.
+  - Un tope inválido en el POST se omite. La pantalla, en cambio, no evalúa.
 - Notas:
-  - Rebase: un solo conflicto, en `components/evaluation-result.tsx` (`QuotesTable` y `QuoteGaps`). Se quedaron los dos lados.
-  - El e2e de la pregunta 2 de #43 contaba tres celdas con «US$»; con la columna de salida son cinco. Ahora cuenta filas y verifica la columna.
-  - `tests/format.test.ts` falla en `main` con Node 24 (ICU pone un espacio no separable en «p. m.»). Con Node 20, que es el de CI, pasa. No es de esta tarea.
-  - PR #44 (abierto) toca `lib/evaluation-input.ts`, la pantalla, `messages.ts` y `progress/`. El que se una segundo se rebasa. #44 ya archiva la tarea de la pantalla en `progress/history/2026-10-02-pantalla-landing.md`; acá no se duplica para no chocar.
-  - Pregunta abierta 1 de la spec: fuera de rueda Binance manda el subyacente en `null`, así que en vivo un sábado no se firma nada (ni QQQB). Choca con la escena del vault.
+  - La tarea anterior (`pantalla-landing`) quedó archivada en `progress/history/2026-10-02-pantalla-landing.md`. Ya está en `main`.
+- Rebase sobre `main` con el cableado (#45, 3 oct 2026):
+  - `messages.ts`: quedan las frases de la pregunta 3 de esta spec y se suman `EXIT_OVER_LIMIT` y `EXIT_NOW_UNAVAILABLE` del cableado.
+  - `passTopeFrase` se reescribió con la entrada nueva (`exits` por emisor, precios crudos de la pregunta 3, `poolsDiffRatio`); sigue dando `violated: ["MAX_IMPACT_RATIO"]`.
+  - `buildEvaluateInput` manda `exits` y además `constraints`; ya no existe el `exit: "unavailable"` global.
+  - En el conflicto de `tests/evaluation-input.test.ts` no se conservó el unitario «reference y regime del token de bStocks»: #45 ya lo había quitado de `main` porque probaba el formato viejo de `reference`.
+  - `exit.risk` queda «sin dato» hasta la issue #19: los e2e de las escenas que pasan ahora esperan «sin dato» en `salida-riesgo`, sin código crudo. `signalText` sigue cubierto por `tests/messages.test.ts`. Spec actualizada.
+  - La tarea del cableado quedó archivada en `progress/history/2026-10-03-cableado-evaluate.md`.
 
 ## Revisión
 
-**Veredicto: Aprobado.** Revisor: revisor general (harness, Cursor), 2026-10-03, sobre `feat/cableado-evaluate` (`207bf99` + `cb71e7c`, working tree limpio antes de esta sección).
+**Veredicto: Rechazado en la primera vuelta; aprobado en la segunda (ver abajo).** Revisor: revisor general estricto (harness, Cursor), 2026-10-03, sobre `feat/textos-y-frase` (`4f4b4b0` sobre `origin/main` `2e05e8b`, working tree limpio antes de esta sección).
 
-Condición para unir (no es del código): la spec queda en `borrador` y se aprueba en el PR; Agustín tiene que responder ahí sus dos preguntas abiertas (fuera de rueda no se firma nada, ni QQQB; «el monto que sí se puede vender» va aparte). Las dos chocan con escenas del vault (`Diferenciador.md:50` y `:65`), así que no las decide el revisor.
+El código cumple la spec y el `check` está en verde. Se rechaza por cobertura: la validación del cuerpo HTTP en el servidor (`maxImpactPercent`) no tiene ningún test, y tres bordes que la spec nombra no tienen test aunque los criterios dicen «(unitario)». Los cuatro arreglos son solo tests; no hace falta tocar código de producción.
 
 ### Comandos corridos
 
-- `git log --oneline origin/main..HEAD`, `git diff --stat origin/main` y `git diff origin/main` de los 18 archivos.
-- `npm run check` con Node `v20.20.2` (el de CI) — **en verde**: eslint limpio, `tsc --noEmit` limpio, **191 unitarios** (14 archivos) y **10 e2e** de Playwright.
-- `python3 ~/.agents/skills/check-map/check_map.py $(git diff --name-only origin/main)` — sale **`1`**: «no hay docs/mapa-agentes.json». No es `2` (no hay coincidencia sensible declarada), pero tampoco es «todo bien»: el repo no tiene mapa, ni en `main`. Ver hallazgos.
-- Script descartable fuera del repo (`vite-node` en `/tmp`, borrado) sobre `evaluate` para los casos borde de la spec que no tienen unitario: `now` con `recoveredUsd: NaN` → `unavailable` `EXIT_NOW_UNAVAILABLE`; `now` sin `simulatedAt` → igual; `exits` con bStocks repetido (primero 0,5, después 0,001) y un wrapper desconocido → vale la primera entrada, se ignora el desconocido y gana Ondo; `referenceUsd: null` → `unavailable` de la pregunta 3 `REFERENCE_PRICE_UNAVAILABLE`.
-- Búsqueda de secretos en el diff: solo aparecen nombres de variables en líneas de contexto de `specs/conexion-datos.md` (ya estaban en `main`). Sin `.env` tocado, sin push.
+- `git log --oneline -3`, `git status --short` (limpio), `git diff --stat origin/main` (17 archivos, +455/−96) y `git diff origin/main` completo.
+- `npm run check` con Node `v20.20.2` (el de CI) — **en verde**: eslint limpio, `tsc --noEmit` limpio, **200 unitarios** (15 archivos) y **13 e2e** de Playwright.
+- `python3 ~/.agents/skills/check-map/check_map.py $(git diff --name-only origin/main)` — sale **`1`**: «no hay docs/mapa-agentes.json». No es `2`. Mismo hueco que en `main` (ya anotado en la revisión del cableado); no es de esta tarea.
+- Rebase: `git range-diff 17d11b5~1..17d11b5 origin/main..HEAD`; `diff` de `progress/history/2026-10-03-cableado-evaluate.md` contra `origin/main:progress/current.md` (**idéntico**); `diff` de `progress/history/2026-10-02-pantalla-landing.md` y de la spec contra `17d11b5`. Las únicas líneas de `main` que el diff borra son las tres frases provisionales de la pregunta 3 (`messages.ts`), el `<code>` crudo de la señal y la frase vieja de la home: todas reemplazadas a propósito. No se perdió nada de #45 (`EXIT_OVER_LIMIT`, `EXIT_NOW_UNAVAILABLE`, `exits`, `reference` por emisor siguen) ni de #44 (frases, `signalText`, `phrase.ts`, ruta, pantalla, `passTopeFrase`, tests).
+- `node -e` descartable para la frontera en punto flotante: `0.7/100 = 0.006999999999999999`, así que `0.007 > 0.7/100` es `true`. En vivo no muerde porque `lib/binance/trading.ts:144` también divide el porcentaje de la API por 100 (mismo float en las dos puntas), pero ningún test lo fija.
+- Búsqueda de secretos en el diff (`api key|secret|private|BINANCE_`): solo una línea de contexto ya presente en `main`. Sin `.env` tocado, sin push ni deploy.
 
 ### Criterios verificados contra código
 
-- Compuerta doble de la pregunta 2 (`lib/evaluate.ts:336-378`): sin compra bajo el tope → `IMPACT_OVER_LIMIT` (`:337-346`); firmable = compra **y** `exits[].now.costRatio` ≤ `IMPACT_LIMIT` (`:350-353`); si ninguna firma y alguna venta se midió sobre el tope → `cut` `EXIT_OVER_LIMIT` (`:356-369`); si ninguna venta se midió → `unavailable` `EXIT_NOW_UNAVAILABLE` (`:370-377`). Venta ausente o malformada nunca firma (fail closed).
-- Ganador entre firmables (`lib/evaluate.ts:380-384`, `tied` en `:465`): menor impacto de compra entre `signable`, desempate por `WRAPPERS`, empate medido solo entre firmables. Coincide con la regla del vault (`Idea.md:45`: «se firma la que tiene compra y venta bajo el tope; si hay más de una, la de menor impacto de compra»).
-- Pregunta 3 solo sobre el ganador (`lib/evaluate.ts:391-427`) con `decideQuestion3`: corte con `wrapper` y `address` del candidato; precio faltante → `unavailable`. No prueba con el siguiente wrapper (no se cambia en silencio).
-- Pregunta 4 (`lib/evaluate.ts:429-448`): solo `POOLS_DISAGREE` corta; régimen ausente usa `EMPTY_REGIME` y no corta.
-- `pass` (`lib/evaluate.ts:450-456`): `exit.now` y `exit.availability` son los del ganador; `risk: "unavailable"` (issue #19). `exits` viaja en `pass`, en los `cut` 2/3/4 y en los `unavailable` posteriores a la cotización.
-- Casos borde de `exits` (`lib/evaluate.ts:522-555`): wrapper desconocido o repetido se ignora (vale el primero); `now` no finito o sin `simulatedAt` cuenta como no medido.
-- Orquestador (`lib/evaluation-input.ts:242-307`): la venta se pide solo si la compra llegó, en paralelo con la pregunta 1, la disponibilidad y `dynamic` (`:261-276`), con `amount: quote.toTokenAmount` y la wallet del agente (`:267-272`); cada fuente tiene `.catch` → `"unavailable"`. `market/status` memoizado en una sola promesa (`:170-175`). La entrada ya no tiene `exit` global; suma `exits` y `reference` (`:120-129`).
-- `toTokenAmount` como cadena exacta (`lib/binance/trading.ts:134-146`): la cadena viaja tal cual; `toAmount` sigue siendo número para no romper a los consumidores.
-- Pantalla: la columna «Salida ahora» aparece solo cuando hay `exits` y muestra «sin dato» si la venta no se midió (`components/evaluation-result.tsx:281-310`); los cortes 3 y 4 nombran al «Emisor candidato» (`:171-186`); el `unavailable` muestra la referencia y la tabla (`:135-140`). La pantalla solo lee, no vuelve a decidir el corte. Textos nuevos en `components/messages.ts:31-38`; escena `cutExitNow` (`lib/evaluation-examples.ts:128-136`, `components/stock-proof-screen.tsx:29-32`).
-- Arquitectura: decide `lib/evaluate.ts`; el orquestador traduce y declara `"unavailable"`; la key sigue solo en el servidor (`evaluation-examples.ts` importa funciones puras). Sin cambios fuera de alcance.
-- Specs hermanas coherentes con el código: `formato-evaluacion.md` (entrada `exits`, `exit` del ganador), `preguntas-1-y-2.md` («entra y sale», tabla de resultados, casos borde), `conexion-datos.md` (puntos 5-7 del orquestador), `cotizaciones-parciales.md` (ganador entre firmables).
+- Textos: frases de pase, corte y «sin dato» de la pregunta 3 y corte de la 4 en `components/messages.ts:33-43`, en tercera persona; las de `EXIT_*` del cableado se conservan (`:31-32`). `signalText` con genérico en `:46-54`; la pantalla ya no muestra `<code>` y la clave del `li` es `code-observedAt` (`components/evaluation-result.tsx:495-496`).
+- Frase: «Comprame US$ [monto] de [ticker] si el contrato es el real y el costo no supera el [tope] %.» (`components/stock-proof-screen.tsx` en el `p.intent-sentence`), tope inicial `"1"`, mensaje propio «El tope tiene que ser un porcentaje mayor a cero y como máximo 100.» con `aria-describedby`.
+- Orden de validación: ticker y monto primero (`stock-proof-screen.tsx:70-75`), después el tope (`:76-82`), después la escena (`:83-86`). Solo «En vivo» llega al `fetch`; `maxImpactPercent` va con punto decimal y solo si el tope no está vacío (`:97-99`).
+- `impactRatioFromPercent` (`lib/phrase.ts:6-12`): vacío → `undefined`, inválido (≤ 0, > 100, no finito) → `null`, válido → fracción. Las dos puntas la usan (decisión técnica de la spec).
+- Ruta (`app/api/evaluate/route.ts:30-35`, `:41-45`): `readImpactRatio` acepta string o number; inválido → `undefined` → se omite, sin 400; las cuatro preguntas corren igual.
+- `buildEvaluateInput` (`lib/evaluation-input.ts:134`, `:138-145`): `constraints` solo con número finito > 0; si no vino, no aparece.
+- `evaluate` sin cambios: la comparación sigue siendo `winner.impactRatio > constraints.maxImpactRatio` (`lib/evaluate.ts:603-608`); `lib/evaluate.ts` no está en el diff. La pantalla muestra `constraints` solo si `violated` no está vacío (`evaluation-result.tsx:224-228`), no decide el corte.
+- `passTopeFrase` (`lib/evaluation-examples.ts:161-183`): sale de `evaluate` con la entrada nueva; impacto ganador 0,4 %, tope 0,3 %.
+- Arquitectura: `lib/phrase.ts` es puro y no importa nada del servidor; la key sigue solo en la ruta. Sin cambios fuera de alcance (no hay `maxDeviationRatio` en la frase, la firma sigue deshabilitada, la escena por defecto sigue siendo `pass`).
+- Spec: «en implementación (Luciano aprobó el alcance el 2 oct 2026)». Cuenta como aprobada para implementar: es una aprobación humana escrita del alcance, con el mismo formato que `specs/pantalla-landing.md` (ya en `main`). La aprobación final la da el PR (1 aprobación requerida). `progress/current.md:3` apunta a la spec.
+- Tamaño: +455/−96, de los que ~150 son `progress/history` archivado y ~90 la spec. Código de producción ~160 líneas. Revisable de una sentada.
 
-### Tests revisados — verifican comportamiento real
+### Tests revisados
 
-- `tests/evaluate.test.ts`: compra y venta en el 1% exacto pasan; el de menor compra que no puede salir cede al siguiente; el empate excluye a un wrapper cuya venta no pasa; `EXIT_OVER_LIMIT` con su `costRatio` en `exits`; la venta medida sobre el tope pesa más que el «sin cotización» de otro wrapper; sin `exits` no se firma; pregunta 3 (retorno total de Ondo, multiplicador, desvío sin causa con candidato, precio faltante); pregunta 4 (libro clavado pasa y queda en el régimen, `POOLS_DISAGREE` corta, sin pools no corta); la disponibilidad del ganador llega al bloque de salida; las escenas de la pantalla salen de `evaluate`, `cutExitNow` incluida.
-- `tests/evaluation-input.test.ts`: `amount` de la venta igual al `toTokenAmount` exacto de cada compra, con el contrato y la wallet `0xAGENTE`; ni `NOT_LISTED` ni `NO_QUOTE` piden venta; venta `"unavailable"` en un wrapper sin tumbar al resto; `marketStatus` llamado una sola vez (`toHaveBeenCalledTimes(1)`) con la disponibilidad real; precios crudos por wrapper; subyacente `null` entra crudo.
-- `tests/trading.test.ts`: `toTokenAmount` por encima de 2^53 se conserva y el test demuestra que `Number` lo habría perdido.
-- `e2e/pantalla.spec.ts`: el corte de la pregunta 2 cuenta filas (no celdas con «US$») y comprueba la columna «Salida ahora» con valor y con «sin dato»; la escena `cutExitNow` muestra el motivo, US$ 1.952 en bStocks y no muestra el botón de firma.
+- `tests/phrase.test.ts`: vacío y espacios → `undefined`; «1», «0,5» (coma) y «100» → fracción; «0», «-1», «100.1», «abc», «NaN» → `null`. Comportamiento real, cubre los bordes de parseo.
+- `tests/messages.test.ts:18-58`: todos los códigos de las listas `Q3_*` y `Q4_CUT_REASONS` tienen frase que no es el genérico ni contiene el código; `signalText` traduce las dos señales y un desconocido no sale crudo.
+- `tests/evaluation-input.test.ts:256-268`: con `maxImpactRatio: 0.005` llega `constraints`; sin él, `constraints` es `undefined`.
+- `tests/evaluate.test.ts:740-743`: `passTopeFrase` es `pass` con `violated` exactamente `["MAX_IMPACT_RATIO"]`.
+- `e2e/pantalla.spec.ts:58-63` (frase y tope «1»), `:65-74` (tope «0» → mensaje y sin `resultado`; si faltara la validación, el clic pintaría el `pass` y el test fallaría), `:101-103` y `:245-247` (`salida-riesgo` dice «sin dato» y no muestra el código), `:250-259` (`passTopeFrase`: «Se puede firmar», «tope de impacto», firma deshabilitada).
 
-### Hallazgos menores (no bloqueantes)
+### Hallazgos bloqueantes
 
-- **`check-map` sale `1`**: falta `docs/mapa-agentes.json`, también en `main`; ninguna revisión anterior lo corrió. Sin mapa no se puede saber si `lib/binance/trading.ts` (cotización firmada) o `lib/evaluate.ts` son rutas sensibles. No se rechaza porque no hay coincidencia `2` y es un hueco del repo, no de esta tarea. Conviene abrir un issue con `crear-issue` para crear el mapa.
-- **Faltan unitarios de los casos borde de `exits`** (spec, «Casos borde»): `now` malformado, wrapper repetido o desconocido. Los comprobé con el script de arriba y el código cumple, pero son la compuerta: merecen un test en `tests/evaluate.test.ts`.
-- **No hay test de una venta que lanza excepción** (`lib/evaluation-input.ts:273`, `.catch`): el test cubre `exitNow` devolviendo `"unavailable"`, no rechazando.
-- **`toTokenAmount` no se valida como entero** (`lib/binance/trading.ts:134-138`): una cadena decimal (el fixture `"0.87"` de `tests/trading.test.ts:50` lo muestra) o un número grande pasado por `toString()` (`"1.99e+20"`) se mandaría tal cual como `amount` de la venta. Hoy termina en fail closed (la API no cotiza → «sin dato»), pero un `/^\d+$/` haría que la compra no sirva si su salida no es medible.
-- **El `unavailable` de la pregunta 3 no nombra al candidato** (`lib/evaluate.ts:417-426`): la spec lo exige solo para los cortes, pero el usuario no sabe sobre qué emisor faltó el precio.
-- **Tamaño (~1.300 líneas: 550 de `lib`+`components`, 591 de tests+e2e, el resto specs y progress)**: la justificación de no partir es razonable para la unión `Evaluation`, pero no del todo exacta: un primer slice «compuerta de la venta + orquestador» no dejaba `main` peor que hoy; lo que no se podía era unir las preguntas 3 y 4 antes que la compuerta. Se acepta porque el código de producción ronda las 550 líneas, más de la mitad del diff son tests y el cambio es una sola unidad coherente.
+1. **La validación del cuerpo HTTP no tiene test** (`app/api/evaluate/route.ts:30-35`, `:41-45`). La spec dice «Un tope inválido en el cuerpo se omite y las cuatro preguntas igual corren. No responde 400» (Comportamiento y Casos borde), y AGENTS.md pone esa validación en el servidor. No hay ningún test de la ruta. **Arreglo**: `tests/evaluate-route.test.ts` que haga `vi.mock("@/lib/evaluation-input")` (espiar `buildEvaluateInput`, `realInputDeps` como stub) y llame a `POST(new Request(..., { body }))`. Casos: `"0.5"` → `maxImpactRatio` 0.005; `0.5` numérico → 0.005; `"0"`, `"150"`, `"abc"`, `true`, `null` → la request a `buildEvaluateInput` no trae `maxImpactRatio`, la respuesta es 200 y viene la `Evaluation`; sin el campo → tampoco.
+2. **La frontera «tope igual al impacto no viola» no tiene test** (spec, Contexto y Casos borde; es la razón de escribir «no supera el»). `tests/evaluate.test.ts:697-716` solo prueba una violación (0,1 % contra 0,2 %). **Arreglo**: un unitario en `tests/evaluate.test.ts` donde el ganador impacta igual al tope y `constraints.violated` queda `[]`. Que el tope salga de `impactRatioFromPercent("0,7")` y el impacto sea `0.7 / 100` (como en `lib/binance/trading.ts:144`), para fijar que el punto flotante no convierte el «igual» en violación.
+3. **El criterio «`buildEvaluateInput` reenvía `maxImpactRatio` solo si vino un número finito mayor a cero (unitario)» está a medias** (`tests/evaluation-input.test.ts:256-268`). Prueba un positivo y el ausente, no el «solo si». La guarda de `lib/evaluation-input.ts:141` no tiene test. **Arreglo**: en el mismo `it`, `0`, `-0.01`, `NaN` e `Infinity` → `constraints` `undefined`.
+4. **El contrato de la pantalla con la ruta no tiene test** (`components/stock-proof-screen.tsx:97-99`). La spec dice «el texto escrito, con punto decimal» y «Tope vacío en vivo: no se manda `maxImpactPercent`». **Arreglo**: un e2e con `page.route("**/api/evaluate", ...)` en la escena «En vivo» que capture `request.postDataJSON()` y responda un `Evaluation` de ejemplo: con «0,5» el cuerpo trae `maxImpactPercent: "0.5"`; con el tope vacío, el cuerpo no trae la clave. Sin red real.
 
-### Después de la aprobación (líder, 2026-10-03)
+### Hallazgos no bloqueantes
 
-- Se sumaron los tests que pedían dos hallazgos, sin tocar código de producción: venta malformada que no firma, wrapper repetido (vale la primera) y desconocido (se ignora) en `tests/evaluate.test.ts`, y venta que lanza error sin tumbar al resto en `tests/evaluation-input.test.ts`.
-- `npm run check` con Node 20 sigue en verde: **194 unitarios** y **10 e2e**.
-- Quedan para otra tarea: validar `toTokenAmount` como entero (romper el fixture `"0.87"` pide revisar los tests de `trading`), nombrar al candidato en el `unavailable` de la pregunta 3 y crear `docs/mapa-agentes.json`.
+- **`progress/` y la spec quedaron con datos de antes del rebase**: `progress/current.md:4` dice «sobre `main` (`8c0860a`)» (ahora es `2e05e8b`); `progress/current.md:13`, `specs/textos-motivo-y-frase.md:62` y el cuerpo del PR dicen «179 unitarios, 12 e2e» (ahora 200 y 13). `progress/current.md:9` todavía dice que el e2e «lo ve en `salida-riesgo`», cuando ahora ve «sin dato». Corregir al sumar los tests.
+- **La nota del rebase atribuye mal un test**: «Se quitó el unitario "reference y regime…"» (`progress/current.md:27`). Ese test ya no existe en `origin/main`: lo sacó #45, no este rebase. No cambia nada del código; corregir la frase para que nadie lo busque en este diff.
+- **`Number()` acepta formatos raros** (`lib/phrase.ts:9`): «0x10» da 16 % y «1e1» da 10 %. No rompe nada (sigue en (0, 100]), pero una regex `^\d+([.,]\d+)?$` dejaría la frase en «porcentaje escrito por una persona». Se puede hacer en otra tarea.
+- **Un tope inválido también bloquea las escenas de ejemplo** (`stock-proof-screen.tsx:76-86`), aunque la spec dice que las escenas ignoran el tope tipeado. Es coherente con «Inválido: la pantalla no evalúa», pero conviene dejarlo escrito en la spec para que no se lea como contradicción.
+- **El criterio de señales dice «las dos escenas que pasan»** (`specs/textos-motivo-y-frase.md:58`): ahora son tres (`passTopeFrase`). Opcional sumar la aserción ahí también.
+- **`check-map` sale `1`** (falta `docs/mapa-agentes.json`, también en `main`). Ya está como pendiente en la revisión del cableado; no se exige acá.
+
+### Segunda vuelta (2026-10-03)
+
+**Veredicto: Aprobado.** Revisor: revisor general estricto (harness, Cursor), sobre `feat/textos-y-frase` (`4f4b4b0` + cambios sin commitear: `tests/evaluate-route.test.ts` nuevo, `tests/evaluate.test.ts`, `tests/evaluation-input.test.ts`, `e2e/pantalla.spec.ts`, `specs/textos-motivo-y-frase.md`, `progress/current.md`).
+
+#### Comandos corridos
+
+- `git status --short` y `git diff --stat HEAD`: cambian solo los 5 archivos de arriba más el test nuevo. `git diff --quiet HEAD -- app lib components`: **sin cambios de producción**.
+- `git diff HEAD` completo (tests, e2e, spec, progress) y `git diff --stat origin/main` (17 archivos, +559/−80, más los 65 del test nuevo).
+- `npm run check` con Node `v20.20.2` — **en verde**: eslint y `tsc` limpios, **214 unitarios** (16 archivos) y **15 e2e**.
+- Mutaciones temporales del código de producción, una por bloqueante, con `sha256sum` antes y `git checkout -- <archivo>` después (los archivos de producción no tenían cambios sin commitear):
+  - Ruta, un inválido pasa como `0` (`app/api/evaluate/route.ts:44`): **3 de 9** fallan en `tests/evaluate-route.test.ts` («0», «150», «abc»).
+  - Ruta, el tope se ignora (`route.ts:30`): **3 de 9** fallan (las tres conversiones).
+  - `evaluate`, `>` pasa a `>=` (`lib/evaluate.ts:605`): falla el unitario de la frontera.
+  - `constraintsField` sin la guarda (`lib/evaluation-input.ts:141`): fallan los **4** casos de `it.each`.
+  - Pantalla sin `.replace(",", ".")` (`components/stock-proof-screen.tsx:99`): falla el e2e de «0,5» (`Received: "0,5"`).
+  - Pantalla que manda el tope vacío (`stock-proof-screen.tsx:97`): falla el e2e del tope vacío (`Received value: ""`).
+  - Después de restaurar: `sha256sum -c` **OK** en los cuatro archivos y `git diff --stat HEAD` sigue mostrando solo tests, e2e, spec y progress.
+- `check-map` sobre el diff contra `origin/main` más el test nuevo: sigue en **`1`** (falta el mapa, igual que en `main`). No es `2`.
+- Búsqueda de secretos en `git diff HEAD`: nada nuevo. Sin `.env`, sin commit, sin push.
+
+#### Bloqueantes de la primera vuelta
+
+1. **Resuelto.** `tests/evaluate-route.test.ts` mockea `buildEvaluateInput`, deja el `evaluate` real y llama a `POST`. `"0.5"`, `0.5` y `"1"` llegan como fracción. `"0"`, `"150"`, `"abc"`, `true` y `null` llegan sin `maxImpactRatio`, con 200 y con la `Evaluation`. Sin tope en el cuerpo no se inventa uno. Las mutaciones lo confirman.
+2. **Resuelto.** `tests/evaluate.test.ts:719-735`: el tope sale de `impactRatioFromPercent("0,7")` y el impacto es `0.7 / 100`; da `violated: []`. Con `>=` falla.
+3. **Resuelto.** `tests/evaluation-input.test.ts:270-279`: `0`, `-0.01`, `NaN` e `Infinity` dejan `constraints` en `undefined`. Sin la guarda fallan los cuatro.
+4. **Resuelto.** `e2e/pantalla.spec.ts:76-106`: «En vivo» con `page.route` (sin red real). «0,5» viaja como `"0.5"`; el tope vacío no manda la clave; se comprueba una sola llamada y que la pantalla pinte el resultado. Cada mutación rompe su caso.
+
+#### Spec y progress
+
+- La spec suma tres criterios (ruta, frontera, contrato pantalla→ruta), cada uno con su test. Aclara que un tope inválido frena en cualquier escena, coherente con `stock-proof-screen.tsx:76-82`. Los conteos (214 y 15) coinciden con este `check`.
+- `progress/current.md`: rama sobre `2e05e8b`, criterios al día, y la nota del test quitado ahora dice que lo sacó #45.
+
+#### Hallazgos (no bloqueantes)
+
+- En `tests/evaluate-route.test.ts`, los casos `true` y `null` no fallan con la mutación «el inválido pasa como 0»: los frena antes el `typeof` de `route.ts:42`. Tampoco fallarían sin ese `typeof`, porque `"true"` y `"null"` dan `null`. Sobran, pero documentan el contrato y no estorban.
+- El cuerpo del PR #44 todavía dice «179 unitarios, 12 e2e». No es del repo; actualizarlo al pushear.
+- `progress/current.md:3` dice «Estado: en revisión». Con esta aprobación, el líder lo pasa a terminada al cerrar.
+- Siguen para otra tarea: formatos raros en `lib/phrase.ts:9` (`0x10`, `1e1`) y crear `docs/mapa-agentes.json`.
