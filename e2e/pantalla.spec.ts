@@ -73,6 +73,38 @@ test("un tope que no es un porcentaje pide corregirlo sin evaluar", async ({
   await expect(page.getByTestId("resultado")).toHaveCount(0);
 });
 
+for (const { tope, esperado } of [
+  { tope: "0,5", esperado: "0.5" },
+  { tope: "", esperado: undefined },
+]) {
+  test(`en vivo, el tope «${tope}» viaja a la ruta como ${esperado ?? "ausente"}`, async ({
+    page,
+  }) => {
+    const cuerpos: Record<string, unknown>[] = [];
+    await page.route("**/api/evaluate", async (route) => {
+      cuerpos.push(route.request().postDataJSON() as Record<string, unknown>);
+      await route.fulfill({
+        json: { kind: "unavailable", question: 2, reason: "QUOTES_UNAVAILABLE" },
+      });
+    });
+
+    await page.goto("/");
+    await page.getByLabel("Ticker").fill("NVDA");
+    await page.getByLabel("Monto en USD").fill("200");
+    await page.getByLabel("Tope de costo").fill(tope);
+    await page.locator('select[name="escena"]').selectOption("live");
+    await page.getByRole("button", { name: "Evaluar" }).click();
+
+    await expect(page.getByTestId("resultado")).toContainText("No se pudo evaluar");
+    expect(cuerpos).toHaveLength(1);
+    if (esperado === undefined) {
+      expect(cuerpos[0]).not.toHaveProperty("maxImpactPercent");
+    } else {
+      expect(cuerpos[0].maxImpactPercent).toBe(esperado);
+    }
+  });
+}
+
 test("al pasar las cuatro preguntas muestra el emisor, el costo y el bloque de salida", async ({
   page,
 }) => {

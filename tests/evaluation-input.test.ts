@@ -267,6 +267,17 @@ describe("buildEvaluateInput", () => {
     expect(without.constraints).toBeUndefined();
   });
 
+  it.each([0, -0.01, Number.NaN, Number.POSITIVE_INFINITY])(
+    "un tope %s no es un número finito mayor a cero: no se reenvía",
+    async (maxImpactRatio) => {
+      const input = await buildEvaluateInput(
+        { ticker: "NVDA", amountUsd: 200, maxImpactRatio },
+        { ...withSign, overrides: sources() },
+      );
+      expect(input.constraints).toBeUndefined();
+    },
+  );
+
   it("la venta que no cotiza queda «sin dato» en la salida, no se inventa un número", async () => {
     const input = await buildEvaluateInput(
       { ticker: "NVDA", amountUsd: 200 },

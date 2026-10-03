@@ -48,19 +48,22 @@ El ticker o el monto inválidos se miran antes que el tope.
 
 Solo la escena «En vivo» envía `maxImpactPercent`: el texto escrito, con punto decimal. La ruta lo convierte a fracción y lo reenvía como `constraints.maxImpactRatio`. Un tope inválido en el cuerpo se omite y las cuatro preguntas igual corren. No responde 400.
 
-Las escenas de ejemplo ignoran el tope tipeado y muestran el resultado ya calculado. `passTopeFrase` es ese caso: las cuatro preguntas pasan y `constraints.violated` incluye `MAX_IMPACT_RATIO`, porque el ganador impacta 0,4 % y el tope guardado es 0,3 %. Un tope de exactamente 1 % no produce ese estado: un impacto peor ya corta en la pregunta 2.
+Las escenas de ejemplo ignoran el valor de un tope válido y muestran el resultado ya calculado; un tope inválido frena igual, en cualquier escena, porque la pantalla no evalúa con la frase mal escrita. `passTopeFrase` es ese caso: las cuatro preguntas pasan y `constraints.violated` incluye `MAX_IMPACT_RATIO`, porque el ganador impacta 0,4 % y el tope guardado es 0,3 %. Un tope de exactamente 1 % no produce ese estado: un impacto peor ya corta en la pregunta 2.
 
 La escena por defecto sigue siendo `pass`. El botón «Firmar swap» se ve y queda deshabilitado. Negarse a firmar es del agente (issue #22).
 
 ## Criterios de aceptación
 
 - [x] `reasonText` tiene frase para los códigos de las preguntas 3 y 4 que ya devuelve la lógica, y esa frase no contiene el código (unitario).
-- [x] `signalText` traduce `POOL_DISPERSION` y `OFF_HOURS_WEEKEND`. Un código desconocido no se muestra crudo (unitario). En las dos escenas que pasan, `salida-riesgo` dice «sin dato» y no muestra el código (e2e).
+- [x] `signalText` traduce `POOL_DISPERSION` y `OFF_HOURS_WEEKEND`. Un código desconocido no se muestra crudo (unitario). En las escenas que pasan, `salida-riesgo` dice «sin dato» y no muestra el código (e2e).
 - [x] La home muestra la oración con el tope y el valor inicial «1». Un tope inválido pide corrección y no muestra `resultado` (e2e).
 - [x] La escena `passTopeFrase` muestra «Se puede firmar» y «tope de impacto», con «Firmar swap» deshabilitado (e2e). El ejemplo sale de `evaluate` con `violated: ["MAX_IMPACT_RATIO"]` (unitario).
 - [x] `buildEvaluateInput` reenvía `maxImpactRatio` solo si vino un número finito mayor a cero, y no lo inventa si no vino (unitario).
+- [x] `POST /api/evaluate` convierte `maxImpactPercent` (texto o número) a fracción y omite el inválido (`"0"`, `"150"`, `"abc"`, `true`, `null`) sin responder 400 (unitario `tests/evaluate-route.test.ts`).
+- [x] Un tope igual al impacto ganador no figura como violado, con las dos puntas dividiendo el porcentaje por 100 (unitario).
+- [x] En vivo, «0,5» viaja como `maxImpactPercent: "0.5"` y el tope vacío no manda la clave (e2e con la ruta interceptada).
 - [x] En 390 px la home no genera scroll horizontal (el e2e que ya cubre la home).
-- [x] `npm run check` en verde (2 oct 2026: eslint, tsc, 179 unitarios, 12 e2e).
+- [x] `npm run check` en verde (3 oct 2026, Node 20: eslint, tsc, 214 unitarios, 15 e2e).
 
 ## Casos borde
 
