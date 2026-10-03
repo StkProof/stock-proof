@@ -377,6 +377,47 @@ describe("evaluate", () => {
     });
   });
 
+  it("una venta malformada cuenta como no medida y ese wrapper no firma", () => {
+    const result = evaluate({
+      ticker: "NVDA",
+      amountUsd: 200,
+      quotes: quotes(0.004, 0.008, 0.012, { xstocks: LIST_DOWN }),
+      exits: [
+        {
+          wrapper: "bstocks",
+          now: { recoveredUsd: Number.NaN, costRatio: 0.001, simulatedAt: "2026-09-28T12:00:00Z" },
+          availability: "unavailable",
+        },
+        { wrapper: "ondo", now: sell(0.009), availability: "unavailable" },
+      ],
+      reference: MATCHING_PRICES,
+    });
+
+    passOrFail(result);
+    expect(result.wrapper).toBe("ondo");
+    expect(result.exits?.find((exit) => exit.wrapper === "bstocks")?.now).toBe("unavailable");
+  });
+
+  it("de un wrapper repetido vale la primera venta y un wrapper desconocido se ignora", () => {
+    const result = evaluate({
+      ticker: "NVDA",
+      amountUsd: 200,
+      quotes: quotes(0.004, 0.008, 0.012, { xstocks: LIST_DOWN }),
+      exits: [
+        { wrapper: "bstocks", now: sell(0.02), availability: "unavailable" },
+        { wrapper: "bstocks", now: sell(0.001), availability: "unavailable" },
+        { wrapper: "otro" as WrapperId, now: sell(0.001), availability: "unavailable" },
+      ],
+      reference: MATCHING_PRICES,
+    });
+
+    expect(result).toMatchObject({ kind: "cut", question: 2, reason: "EXIT_OVER_LIMIT" });
+    if (result.kind !== "cut" || result.question !== 2) return;
+    expect(result.exits).toEqual([
+      { wrapper: "bstocks", now: sell(0.02), availability: "unavailable" },
+    ]);
+  });
+
   it("decide con un conjunto parcial de cotizaciones y propaga quoteGaps", () => {
     const gaps: QuoteGap[] = [{ wrapper: "xstocks", reason: "NO_QUOTE" }];
     const parciales = quotes(0.002, 0.006, 0.001).filter((q) => q.wrapper !== "xstocks");

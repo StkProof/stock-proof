@@ -274,6 +274,27 @@ describe("buildEvaluateInput", () => {
     });
   });
 
+  it("una venta que lanza error queda «sin dato» y no tumba las demás", async () => {
+    const input = await buildEvaluateInput(
+      { ticker: "NVDA", amountUsd: 200 },
+      {
+        ...withSign,
+        overrides: sources({
+          exitNow: async (args) => {
+            if (args.wrapper === "ondo") throw new Error("red caída");
+            return { recoveredUsd: 199, costRatio: 0.004, simulatedAt: "2026-09-28T12:00:05Z" };
+          },
+        }),
+      },
+    );
+
+    const exits = input.exits as WrapperExit[];
+    expect(exits.find((exit) => exit.wrapper === "ondo")?.now).toBe("unavailable");
+    expect(exits.find((exit) => exit.wrapper === "bstocks")?.now).toMatchObject({
+      costRatio: 0.004,
+    });
+  });
+
   it("la disponibilidad de salida se arma por wrapper con las reglas publicadas", async () => {
     // Sin override de exitAvailability: usa la real (`buildExitAvailability`) con la
     // misma lectura de mercado que la pregunta 4, memoizada en una sola llamada.
