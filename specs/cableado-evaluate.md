@@ -1,6 +1,6 @@
 # Spec: cableado de las preguntas 3 y 4 y Exit Now en `evaluate`
 
-- **Estado**: borrador (se aprueba en el pull request)
+- **Estado**: aprobada (Agustín, 3 oct 2026, al pedir el merge del PR #45). Las dos preguntas abiertas siguen abiertas para otra tarea.
 - **Fecha**: 2026-10-03
 - **Autor**: Agustín, con agente (Cursor)
 - **Issue**: N/A — sigue a #15 (pregunta 3), #16 (pregunta 4), #17 (Exit Now) y #18 (Exit Availability), ya cerradas. Esas tareas dejaron cada pieza como función suelta y probada; esta las conecta a `evaluate` y al orquestador.

@@ -1,7 +1,7 @@
 # Tarea: Cableado de las preguntas 3 y 4 y Exit Now en `evaluate`
 
-- Estado: revisada y aprobada; falta aprobar la spec en el PR
-- Spec: specs/cableado-evaluate.md (Estado: borrador — se aprueba en el pull request; tiene dos preguntas abiertas para Agustín)
+- Estado: terminada (spec aprobada por Agustín al pedir el merge, 3 oct 2026)
+- Spec: specs/cableado-evaluate.md (Estado: aprobada; las dos preguntas abiertas quedan para otra tarea)
 - Issue: N/A — sigue a #15, #16, #17 y #18, ya cerradas. Esas tareas dejaron las piezas sueltas; esta las conecta a `evaluate` y al orquestador.
 - Rama: `feat/cableado-evaluate`, rebasada sobre `main` (`8c0860a`, después de #43)
 - Criterios de aceptación (de la spec):
