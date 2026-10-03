@@ -26,6 +26,10 @@ const SCENES: { key: SceneKey; label: string }[] = [
     key: "cutQuestion2",
     label: "Corta en la pregunta 2: el monto no entra",
   },
+  {
+    key: "cutExitNow",
+    label: "Corta en salida: vender ahora supera el tope (SPCXB, US$ 2.000)",
+  },
   { key: "unavailable", label: "No se pudo evaluar: la lista no respondió" },
   { key: "invalid", label: "Entrada inválida" },
 ];

@@ -28,6 +28,14 @@ const REASON_TEXT: Record<string, string> = {
   // Pregunta 2
   IMPACT_OVER_LIMIT: "Ningún emisor llena este monto con un impacto del 1% o menos.",
   QUOTES_UNAVAILABLE: "No se pudieron obtener las simulaciones de costo.",
+  EXIT_OVER_LIMIT: "Vender este monto ahora cuesta más del 1%: ese emisor no tiene salida bajo el tope.",
+  EXIT_NOW_UNAVAILABLE: "La venta de este monto no se pudo medir: no hay salida medible.",
+  // Pregunta 3
+  DEVIATION_UNEXPLAINED: "El precio del token no es el de la acción y no lo explica ni el multiplicador ni el retorno total.",
+  TOKEN_PRICE_UNAVAILABLE: "No se pudo obtener el precio del token en la ruta.",
+  REFERENCE_PRICE_UNAVAILABLE: "No se pudo obtener el precio de referencia de la acción.",
+  // Pregunta 4
+  POOLS_DISAGREE: "Los pools de este ticker no coinciden entre sí.",
 };
 
 /**

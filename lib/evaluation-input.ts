@@ -17,14 +17,21 @@ import type { SignRequest } from "@/lib/binance/rwa";
 import {
   WRAPPERS,
   type EvaluateInput,
+  type ExitBlock,
   type Quote,
   type QuoteGap,
-  type ReferenceInput,
   type RegimeInput,
+  type WrapperExit,
   type WrapperId,
 } from "@/lib/evaluate";
+import {
+  buildExitAvailability,
+  type ExitAvailabilitySources,
+} from "@/lib/questions/exit-availability";
+import { quoteExitNow, type ExitNowArgs } from "@/lib/questions/exit-now";
 import { checkContractSources, signedQ1Sources, type Q1Sources } from "@/lib/questions/q1";
 import type { Q1Result } from "@/lib/questions/q1-reasons";
+import type { Q3Input } from "@/lib/questions/q3";
 import type { CallContext } from "@/lib/binance/call-log";
 
 export type EvaluateRequest = {
@@ -54,14 +61,22 @@ export type InputDeps = {
 export type InputSources = {
   listTokens(): Promise<PublicToken[] | "unavailable">;
   q1: Q1Sources;
+  /**
+   * Cotiza la compra. `toTokenAmount` es el monto de salida tal cual vino de la API
+   * (unidades mínimas, cadena): es el `amount` exacto que la venta inversa cotiza.
+   */
   quote(
     from: string,
     to: string,
     amount: string,
     wrapper: WrapperId,
-  ): Promise<{ impactRatio: number; toAmount: number } | "unavailable">;
+  ): Promise<{ impactRatio: number; toAmount: number; toTokenAmount: string } | "unavailable">;
   dynamic(address: string): ReturnType<typeof getTokenDynamic>;
   marketStatus(): ReturnType<typeof getMarketStatus>;
+  /** Venta del mismo monto ahora (Exit Now): la compuerta de salida. */
+  exitNow(args: ExitNowArgs): Promise<ExitBlock["now"]>;
+  /** Reglas publicadas de salida del wrapper: informan, no deciden. */
+  exitAvailability(wrapper: WrapperId): Promise<ExitBlock["availability"]>;
 };
 
 /** Deps reales del servidor: firmadas si hay credenciales, públicas siempre. */
@@ -94,8 +109,12 @@ export async function buildEvaluateInput(
   const byWrapper = tokensOfTicker(tokens, ticker);
 
   const target = await buildTarget(req.address, ticker, byWrapper, sources);
-  const { quotes, gaps } = await buildQuotes(req.amountUsd, byWrapper, sources, deps);
-  const reference = await buildReference(byWrapper, sources);
+  const { quotes, gaps, exits, reference } = await buildQuotes(
+    req.amountUsd,
+    byWrapper,
+    sources,
+    deps,
+  );
   const regime = await buildRegime(sources);
 
   return {
@@ -104,9 +123,9 @@ export async function buildEvaluateInput(
     ...(target === undefined ? {} : { target }),
     quotes: quotes.length === 0 ? "unavailable" : quotes,
     ...(gaps.length === 0 ? {} : { quoteGaps: gaps }),
-    reference,
+    reference: reference.length === 0 ? "unavailable" : reference,
     regime,
-    exit: "unavailable",
+    ...(exits.length === 0 ? {} : { exits }),
   };
 }
 
@@ -116,12 +135,13 @@ function resolveSources(deps: InputDeps): InputSources {
     deps.sign === null
       ? publicQ1Sources({ context: deps.context, rpcUrl: deps.rpcUrl })
       : signedQ1Sources({ rwa: { sign: deps.sign, context: deps.context }, rpcUrl: deps.rpcUrl });
+  const sign = deps.sign;
 
   const defaults: InputSources = {
     listTokens: () => listStockTokens(publicDeps),
     q1,
     quote: (from, to, amount, wrapper) =>
-      deps.sign === null
+      sign === null
         ? Promise.resolve("unavailable")
         : getAggregatedQuote(
             {
@@ -133,12 +153,27 @@ function resolveSources(deps: InputDeps): InputSources {
               side: "buy",
               wrapper,
             },
-            { sign: deps.sign, baseUrl: WEB3_BASE_URL, context: deps.context },
+            { sign, baseUrl: WEB3_BASE_URL, context: deps.context },
           ),
     dynamic: (address) => getTokenDynamic(address, publicDeps),
     marketStatus: () => getMarketStatus(publicDeps),
+    exitNow: (args) =>
+      sign === null
+        ? Promise.resolve("unavailable")
+        : quoteExitNow(args, { sign, baseUrl: WEB3_BASE_URL, context: deps.context }),
+    exitAvailability: (wrapper) =>
+      buildExitAvailability(wrapper, {
+        marketStatus: () => sources.marketStatus(),
+      } satisfies ExitAvailabilitySources),
   };
-  return { ...defaults, ...deps.overrides };
+  const sources: InputSources = { ...defaults, ...deps.overrides };
+
+  // El estado de mercado es el mismo endpoint para la pregunta 4 y para la
+  // disponibilidad de salida de cada wrapper: una sola lectura por evaluación.
+  const marketStatusSource = sources.marketStatus;
+  let statusPromise: ReturnType<InputSources["marketStatus"]> | undefined;
+  sources.marketStatus = () => (statusPromise ??= marketStatusSource());
+  return sources;
 }
 
 /** Un token por wrapper para el ticker, en el orden fijo. Solo BSC (`listStockTokens` ya filtra). */
@@ -179,78 +214,96 @@ async function buildTarget(
 }
 
 /**
- * Cotiza cada wrapper con contrato listado para el ticker, en unidades mínimas de USDT
+ * Cotiza la compra de cada wrapper con contrato listado, en unidades mínimas de USDT
  * y con la wallet del agente. Conjunto parcial con motivo: sin contrato queda `NOT_LISTED`
  * (ni se intenta), sin quote usable queda `NO_QUOTE`; la pregunta 1 solo corre sobre los
  * contratos que sí cotizaron (sin ruta no hay nada que evaluar). Sin `sign` no hay llamada
  * firmada posible: el conjunto queda vacío.
+ *
+ * Por cada compra que llegó se traen además, sin decidir nada:
+ * - la venta del mismo monto (`exitNow`, con el `toTokenAmount` real de la compra);
+ * - las reglas publicadas de salida (`exitAvailability`, informa);
+ * - los precios crudos de la pregunta 3 (`reference`, el token y el subyacente).
  */
 async function buildQuotes(
   amountUsd: number,
   byWrapper: Map<WrapperId, PublicToken>,
   sources: InputSources,
   deps: InputDeps,
-): Promise<{ quotes: Quote[]; gaps: QuoteGap[] }> {
-  if (deps.sign === null) return { quotes: [], gaps: [] };
+): Promise<{
+  quotes: Quote[];
+  gaps: QuoteGap[];
+  exits: WrapperExit[];
+  reference: Q3Input[];
+}> {
+  if (deps.sign === null) return { quotes: [], gaps: [], exits: [], reference: [] };
   const amount = toMinimalUnits(amountUsd, USDT_BSC_DECIMALS);
 
   const perWrapper = await Promise.all(
-    WRAPPERS.map(async (wrapper): Promise<{ quote: Quote } | { gap: QuoteGap }> => {
-      const token = byWrapper.get(wrapper);
-      if (token === undefined) return { gap: { wrapper, reason: "NOT_LISTED" } };
-      const quote = await sources.quote(USDT_BSC, token.contractAddress, amount, wrapper);
-      if (quote === "unavailable") return { gap: { wrapper, reason: "NO_QUOTE" } };
-      const authenticity = await checkContractSources(
-        { ticker: token.ticker, wrapper, address: token.contractAddress },
-        sources.q1,
-      ).catch((): Q1Result => ({ ok: false, reason: "LIST_UNAVAILABLE" }));
-      return {
-        quote: {
+    WRAPPERS.map(
+      async (
+        wrapper,
+      ): Promise<
+        { quote: Quote; exit: WrapperExit; reference: Q3Input } | { gap: QuoteGap }
+      > => {
+        const token = byWrapper.get(wrapper);
+        if (token === undefined) return { gap: { wrapper, reason: "NOT_LISTED" } };
+        const quote = await sources.quote(
+          USDT_BSC,
+          token.contractAddress,
+          amount,
           wrapper,
-          address: token.contractAddress,
-          side: "buy",
-          impactRatio: quote.impactRatio,
-          simulatedCostUsd: amountUsd * (1 + quote.impactRatio),
-          authenticity,
-        },
-      };
-    }),
+        );
+        if (quote === "unavailable") {
+          return { gap: { wrapper, reason: "NO_QUOTE" } };
+        }
+
+        const [authenticity, now, availability, dynamic] = await Promise.all([
+          checkContractSources(
+            { ticker: token.ticker, wrapper, address: token.contractAddress },
+            sources.q1,
+          ).catch((): Q1Result => ({ ok: false, reason: "LIST_UNAVAILABLE" })),
+          sources
+            .exitNow({
+              tokenAddress: token.contractAddress,
+              amount: quote.toTokenAmount,
+              wrapper,
+              walletAddress: deps.walletAddress,
+            })
+            .catch((): "unavailable" => "unavailable"),
+          sources.exitAvailability(wrapper).catch((): "unavailable" => "unavailable"),
+          sources.dynamic(token.contractAddress).catch((): "unavailable" => "unavailable"),
+        ]);
+
+        return {
+          quote: {
+            wrapper,
+            address: token.contractAddress,
+            side: "buy",
+            impactRatio: quote.impactRatio,
+            simulatedCostUsd: amountUsd * (1 + quote.impactRatio),
+            authenticity,
+          },
+          exit: { wrapper, now, availability },
+          reference:
+            dynamic === "unavailable"
+              ? { wrapper, tokenPriceUsd: "unavailable", referenceUsd: "unavailable" }
+              : {
+                  wrapper,
+                  tokenPriceUsd: dynamic.tokenPriceUsd,
+                  referenceUsd: dynamic.stockPriceUsd,
+                  sharesMultiplier: dynamic.sharesMultiplier,
+                },
+        };
+      },
+    ),
   );
 
   return {
     quotes: perWrapper.flatMap((item) => ("quote" in item ? [item.quote] : [])),
     gaps: perWrapper.flatMap((item) => ("gap" in item ? [item.gap] : [])),
-  };
-}
-
-/**
- * Datos de la pregunta 3 del token de referencia (bStocks primero, como el desempate).
- * El token cotiza por acción × multiplicador; el subyacente es el precio por acción.
- * `stockPriceUsd: null` (fuera de rueda) deja el dato fuera y `evaluate` lo marca «sin dato».
- */
-async function buildReference(
-  byWrapper: Map<WrapperId, PublicToken>,
-  sources: InputSources,
-): Promise<ReferenceInput | "unavailable"> {
-  const token = WRAPPERS.map((wrapper) => byWrapper.get(wrapper)).find(
-    (item): item is PublicToken => item !== undefined,
-  );
-  if (token === undefined) return "unavailable";
-
-  const dynamic = await sources.dynamic(token.contractAddress);
-  if (dynamic === "unavailable") return "unavailable";
-  if (
-    dynamic.tokenPriceUsd === "unavailable" ||
-    dynamic.stockPriceUsd === null ||
-    dynamic.stockPriceUsd === "unavailable"
-  ) {
-    return "unavailable";
-  }
-  return {
-    referenceUsd: dynamic.stockPriceUsd,
-    poolUsd: dynamic.tokenPriceUsd,
-    // El token cotiza acción × multiplicador: si el dato vino, se declara; si no, se omite.
-    ...(dynamic.sharesMultiplier === "unavailable" ? {} : { multiplierNote: "multiplier" as const }),
+    exits: perWrapper.flatMap((item) => ("exit" in item ? [item.exit] : [])),
+    reference: perWrapper.flatMap((item) => ("reference" in item ? [item.reference] : [])),
   };
 }
 

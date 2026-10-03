@@ -24,7 +24,7 @@ La verificación en vivo contra `/api/v1/dex/aggregator/quote` mostró que la pr
    - `NO_QUOTE` — el venue respondió error, vino sin `data` o con formato raro (cubre wallet faltante, liquidez, monto mínimo).
 5. `evaluate` acepta **una o más** cotizaciones válidas (misma validación por campo, sin duplicados, orden estable `bstocks → ondo → xstocks`). Con **cero** cotizaciones válidas sigue `unavailable` de la pregunta 2 con `QUOTES_UNAVAILABLE`.
 6. `simulatedCostUsd` se sigue calculando en USD (`amountUsd × (1 + impactRatio)`); las unidades mínimas son solo del request a Binance.
-7. Todo lo demás no cambia: una sola puerta (`binanceRequest`), fail closed, la pregunta 1 por el contrato de cada cotización, desempate por orden de wrappers.
+7. Todo lo demás no cambia: una sola puerta (`binanceRequest`), fail closed, la pregunta 1 por el contrato de cada cotización. El ganador es el de menor impacto de compra **entre los que pueden firmar** (compra y venta bajo el tope, ver `specs/preguntas-1-y-2.md`); el desempate sigue el orden de wrappers.
 
 ## Reglas fijas
 
@@ -47,7 +47,7 @@ La verificación en vivo contra `/api/v1/dex/aggregator/quote` mostró que la pr
 - Pedir la wallet al usuario en el request o en la pantalla (hoy sale del `.env` del servidor).
 - Ejecutar el swap con esa wallet (ola de firma).
 - Textos de pantalla para `quoteGaps` (área de Luciano; el campo ya viaja en el resultado).
-- Ventas (`side: "sell"`, Exit Now): misma conversión de unidades, otra tarea.
+- Una segunda cotización de venta para buscar un tamaño menor que sí pase: Exit Now cotiza solo el `toTokenAmount` real de la compra (misma conversión de unidades), y si falla no se estima ni se itera.
 
 ## Plan de implementación
 

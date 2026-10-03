@@ -3,6 +3,10 @@ import {
   type Q1CutReason,
   type Q1Result,
 } from "@/lib/questions/q1-reasons";
+import { decideQuestion3, type Q3Input } from "@/lib/questions/q3";
+import type { Q3CutReason, Q3Result } from "@/lib/questions/q3-reasons";
+import { decideQuestion4, type Q4Input } from "@/lib/questions/q4";
+import type { Q4CutReason, Q4Result } from "@/lib/questions/q4-reasons";
 
 /** Umbral de impacto de la pregunta 2: 1% = 0.01. */
 export const IMPACT_LIMIT = 0.01;
@@ -113,25 +117,26 @@ export type ConstraintCode = "MAX_IMPACT_RATIO" | "MAX_DEVIATION_RATIO";
 
 export type QuestionId = 1 | 2 | 3 | 4;
 
-/** Códigos de corte de la pregunta 2. La spec de la pregunta 2 puede sumar. */
-export const Q2_CUT_REASONS = ["IMPACT_OVER_LIMIT"] as const;
+/**
+ * Códigos de corte de la pregunta 2. `IMPACT_OVER_LIMIT` es la compra; `EXIT_OVER_LIMIT`
+ * es la venta del mismo monto medida por encima del tope (Exit Now es compuerta).
+ */
+export const Q2_CUT_REASONS = ["IMPACT_OVER_LIMIT", "EXIT_OVER_LIMIT"] as const;
 export type Q2CutReason = (typeof Q2_CUT_REASONS)[number];
 
-/** Datos crudos de la pregunta 3: `evaluate` calcula el desvío. */
-export type ReferenceInput = {
-  referenceUsd: number;
-  poolUsd: number;
-  multiplierNote?: "none" | "multiplier" | "total-return";
+/**
+ * La salida traída para un wrapper que cotizó la compra. `now` es la venta del mismo
+ * monto ya medida (compuerta, a la par de la compra); `availability` son las reglas
+ * publicadas de salida (informa, no decide). Un campo que no llegó es `"unavailable"`.
+ */
+export type WrapperExit = {
+  wrapper: WrapperId;
+  now: ExitBlock["now"];
+  availability: ExitBlock["availability"];
 };
 
-/** Datos crudos de la pregunta 4. */
-export type RegimeInput = {
-  marketStatus: "open" | "closed";
-  nextOpenAt?: string;
-  poolsAgree?: boolean;
-  bookFrozen?: boolean;
-  suggestSplit?: boolean;
-};
+/** Datos crudos de la pregunta 4: misma forma que `Q4Input` (decide `decideQuestion4`). */
+export type RegimeInput = Q4Input;
 
 export type EvaluateInput = {
   ticker: string;
@@ -142,21 +147,43 @@ export type EvaluateInput = {
    */
   target?: { address: string; check: Q1Result | "unavailable" };
   /**
-   * Las cotizaciones que llegaron, una por wrapper cotizado (el conjunto puede ser parcial).
-   * `"unavailable"` si no llegó ninguna. Cada una trae la pregunta 1 sobre su contrato.
+   * Las cotizaciones de compra que llegaron, una por wrapper cotizado (el conjunto
+   * puede ser parcial). `"unavailable"` si no llegó ninguna. Cada una trae la
+   * pregunta 1 sobre su contrato.
    */
   quotes: Quote[] | "unavailable";
   /** Wrappers que no aportaron cotización y por qué. Diagnóstico aditivo: no decide. */
   quoteGaps?: QuoteGap[];
-  reference?: ReferenceInput | "unavailable";
+  /**
+   * Precios crudos de la pregunta 3, uno por wrapper cotizado (el token y el subyacente
+   * se miran por separado). `evaluate` los evalúa con `decideQuestion3` sobre el ganador.
+   */
+  reference?: Q3Input[] | "unavailable";
+  /** Datos crudos de la pregunta 4. `evaluate` los evalúa con `decideQuestion4`. */
   regime?: RegimeInput | "unavailable";
-  exit?: ExitBlock | "unavailable";
+  /**
+   * Salida por wrapper cotizado: la venta del mismo monto ya cotizada (`now`) y las
+   * reglas publicadas (`availability`). La venta es compuerta: si no se midió para el
+   * candidato, ese wrapper no se puede firmar. `risk` no se trae todavía (issue #19).
+   */
+  exits?: WrapperExit[];
   constraints?: Constraints;
 };
 
 export type Evaluation =
   | { kind: "invalid" }
-  | { kind: "unavailable"; question: QuestionId; reason: string; quoteGaps?: QuoteGap[] }
+  | {
+      kind: "unavailable";
+      question: QuestionId;
+      reason: string;
+      quoteGaps?: QuoteGap[];
+      /** Cotizaciones que sí llegaron, cuando el freno es posterior a la cotización. */
+      quotes?: Quote[];
+      /** Salidas por wrapper cotizado: `"unavailable"` marca la venta que no se midió. */
+      exits?: WrapperExit[];
+      /** Datos de la pregunta 3 que sí llegaron (p.ej. falta el precio de referencia). */
+      reference?: Reference;
+    }
   | {
       kind: "cut";
       question: 1;
@@ -165,9 +192,39 @@ export type Evaluation =
       quotes?: Quote[];
       quoteGaps?: QuoteGap[];
     }
-  | { kind: "cut"; question: 2; reason: Q2CutReason; quotes: Quote[]; quoteGaps?: QuoteGap[] }
-  | { kind: "cut"; question: 3; reason: string; reference: Reference }
-  | { kind: "cut"; question: 4; reason: string; regime: Regime }
+  | {
+      kind: "cut";
+      question: 2;
+      reason: Q2CutReason;
+      quotes: Quote[];
+      quoteGaps?: QuoteGap[];
+      /** Salida por wrapper: en `EXIT_OVER_LIMIT` muestra el `costRatio` medido. */
+      exits?: WrapperExit[];
+    }
+  | {
+      kind: "cut";
+      question: 3;
+      reason: Q3CutReason;
+      reference: Reference;
+      /** El candidato que ganó la compra y la venta, y falló acá. */
+      wrapper?: WrapperId;
+      address?: string;
+      quotes?: Quote[];
+      exits?: WrapperExit[];
+      quoteGaps?: QuoteGap[];
+    }
+  | {
+      kind: "cut";
+      question: 4;
+      reason: Q4CutReason;
+      regime: Regime;
+      /** El candidato que ganó la compra y la venta, y falló acá. */
+      wrapper?: WrapperId;
+      address?: string;
+      quotes?: Quote[];
+      exits?: WrapperExit[];
+      quoteGaps?: QuoteGap[];
+    }
   | {
       kind: "pass";
       wrapper: WrapperId;
@@ -179,19 +236,14 @@ export type Evaluation =
       quotes: Quote[];
       /** Wrappers que no cotizaron (conjunto parcial). Diagnóstico, no decide. */
       quoteGaps?: QuoteGap[];
+      /** Salida de cada wrapper cotizado: la del ganador además está en `exit.now`. */
+      exits?: WrapperExit[];
       reference: Reference;
       regime: Regime;
       exit: ExitBlock;
       /** Solo si la frase trajo topes: cuáles no se cumplieron. La decisión de firmar es del agente. */
       constraints?: { violated: ConstraintCode[] };
     };
-
-const EMPTY_REFERENCE: Reference = {
-  referenceUsd: "unavailable",
-  poolUsd: "unavailable",
-  deviationRatio: "unavailable",
-  multiplierNote: "unavailable",
-};
 
 const EMPTY_REGIME: Regime = {
   marketStatus: "unavailable",
@@ -201,16 +253,15 @@ const EMPTY_REGIME: Regime = {
   suggestSplit: false,
 };
 
-const EMPTY_EXIT: ExitBlock = {
-  now: "unavailable",
-  availability: "unavailable",
-  risk: "unavailable",
-};
-
 /**
- * Las cuatro preguntas, en orden. No llama a la red: quien consulta las APIs arma la entrada.
- * Si una falla, no hay transacción. Las preguntas 3 y 4 todavía no tienen reglas de corte:
- * sus datos entran al resultado o quedan «sin dato» hasta que sus specs las definan.
+ * Las cuatro preguntas, en orden (regla del vault, 30 sep 2026). No llama a la red:
+ * quien consulta las APIs arma la entrada. Si una falla, no hay transacción.
+ *
+ * La pregunta 2 es compuerta doble: un wrapper se puede firmar solo si la compra
+ * **y la venta del mismo monto** (Exit Now, `exits[].now.costRatio`) están bajo
+ * `IMPACT_LIMIT`. Si la venta no se midió, ese wrapper no se firma — fail closed.
+ * Las preguntas 3 y 4 las resuelven `decideQuestion3` y `decideQuestion4` sobre el
+ * candidato ganador; la disponibilidad de salida informa y nunca elimina.
  */
 export function evaluate(input: EvaluateInput): Evaluation {
   const ticker = input.ticker.trim();
@@ -224,6 +275,16 @@ export function evaluate(input: EvaluateInput): Evaluation {
 
   // Diagnóstico del conjunto parcial: viaja a todo resultado que expone cotizaciones.
   const gaps = input.quoteGaps === undefined ? {} : { quoteGaps: input.quoteGaps };
+  const exitByWrapper = normalizeExits(input.exits);
+  const exits =
+    exitByWrapper.size === 0
+      ? {}
+      : {
+          exits: WRAPPERS.flatMap((wrapper) => {
+            const exit = exitByWrapper.get(wrapper);
+            return exit === undefined ? [] : [exit];
+          }),
+        };
 
   if (input.target !== undefined) {
     const check = input.target.check;
@@ -274,11 +335,50 @@ export function evaluate(input: EvaluateInput): Evaluation {
 
   const fitting = eligible.filter((quote) => quote.impactRatio <= IMPACT_LIMIT);
   if (fitting.length === 0) {
-    return { kind: "cut", question: 2, reason: "IMPACT_OVER_LIMIT", quotes, ...gaps };
+    return {
+      kind: "cut",
+      question: 2,
+      reason: "IMPACT_OVER_LIMIT",
+      quotes,
+      ...exits,
+      ...gaps,
+    };
   }
 
-  const bestImpact = Math.min(...fitting.map((quote) => quote.impactRatio));
-  const atBest = fitting.filter((quote) => quote.impactRatio === bestImpact);
+  // La venta del mismo monto es compuerta, a la par de la compra: firma solo el
+  // wrapper con las dos medidas bajo el tope. Venta sin cotizar = no se firma.
+  const signable = fitting.filter((quote) => {
+    const now = exitByWrapper.get(quote.wrapper)?.now;
+    return now !== "unavailable" && now !== undefined && now.costRatio <= IMPACT_LIMIT;
+  });
+
+  if (signable.length === 0) {
+    const measuredOverLimit = fitting.some((quote) => {
+      const now = exitByWrapper.get(quote.wrapper)?.now;
+      return now !== "unavailable" && now !== undefined && now.costRatio > IMPACT_LIMIT;
+    });
+    if (measuredOverLimit) {
+      return {
+        kind: "cut",
+        question: 2,
+        reason: "EXIT_OVER_LIMIT",
+        quotes,
+        ...exits,
+        ...gaps,
+      };
+    }
+    return {
+      kind: "unavailable",
+      question: 2,
+      reason: "EXIT_NOW_UNAVAILABLE",
+      quotes,
+      ...exits,
+      ...gaps,
+    };
+  }
+
+  const bestImpact = Math.min(...signable.map((quote) => quote.impactRatio));
+  const atBest = signable.filter((quote) => quote.impactRatio === bestImpact);
   const winner = WRAPPERS.map((wrapper) =>
     atBest.find((quote) => quote.wrapper === wrapper),
   ).find((quote): quote is Quote => quote !== undefined);
@@ -287,9 +387,73 @@ export function evaluate(input: EvaluateInput): Evaluation {
     return { kind: "unavailable", question: 2, reason: "QUOTES_UNAVAILABLE", ...gaps };
   }
 
-  const reference = buildReference(input.reference);
-  const regime = buildRegime(input.regime);
-  const exit = input.exit === undefined || input.exit === "unavailable" ? EMPTY_EXIT : input.exit;
+  // Pregunta 3 sobre el candidato: explica el desvío (multiplier o retorno total) o
+  // corta. Un precio que no llegó es «no se pudo evaluar»: fail closed, no se firma.
+  const q3Input =
+    input.reference === undefined || input.reference === "unavailable"
+      ? undefined
+      : input.reference.find((entry) => entry.wrapper === winner.wrapper);
+  const q3 = decideQuestion3(
+    q3Input ?? {
+      wrapper: winner.wrapper,
+      tokenPriceUsd: "unavailable",
+      referenceUsd: "unavailable",
+    },
+  );
+  const reference = buildReference(q3Input, q3);
+  if (q3.kind === "cut") {
+    return {
+      kind: "cut",
+      question: 3,
+      reason: q3.reason,
+      reference,
+      wrapper: winner.wrapper,
+      address: winner.address,
+      quotes,
+      ...exits,
+      ...gaps,
+    };
+  }
+  if (q3.kind === "unavailable") {
+    return {
+      kind: "unavailable",
+      question: 3,
+      reason: q3.reason,
+      reference,
+      quotes,
+      ...exits,
+      ...gaps,
+    };
+  }
+
+  // Pregunta 4: el único corte es pools que no coinciden. Mercado cerrado no corta y
+  // el libro clavado queda en `regime` para que el comprobante lo diga.
+  const q4: Q4Result =
+    input.regime === undefined || input.regime === "unavailable"
+      ? { ok: true, regime: EMPTY_REGIME }
+      : decideQuestion4(input.regime);
+  const regime = q4.regime;
+  if (!q4.ok) {
+    return {
+      kind: "cut",
+      question: 4,
+      reason: q4.reason,
+      regime,
+      wrapper: winner.wrapper,
+      address: winner.address,
+      quotes,
+      ...exits,
+      ...gaps,
+    };
+  }
+
+  const winnerExit = exitByWrapper.get(winner.wrapper);
+  const exit: ExitBlock = {
+    // `now` del ganador llegó medido (la compuerta lo exigió); las otras capas informan.
+    now: winnerExit?.now ?? "unavailable",
+    availability: winnerExit?.availability ?? "unavailable",
+    risk: "unavailable",
+  };
   const constraints = checkConstraints(input.constraints, winner, reference);
 
   return {
@@ -300,6 +464,7 @@ export function evaluate(input: EvaluateInput): Evaluation {
     simulatedCostUsd: winner.simulatedCostUsd,
     tied: atBest.length > 1,
     quotes,
+    ...exits,
     reference,
     regime,
     exit,
@@ -350,37 +515,79 @@ function normalizeQuotes(quotes: Quote[] | "unavailable"): Quote[] | null {
   return ordered;
 }
 
-function buildReference(input: ReferenceInput | "unavailable" | undefined): Reference {
-  if (input === undefined || input === "unavailable") {
-    return EMPTY_REFERENCE;
+/**
+ * Salidas por wrapper en un mapa validado para la compuerta: un wrapper desconocido o
+ * repetido se ignora, y un `now` malformado cuenta como `"unavailable"` (no se midió).
+ */
+function normalizeExits(exits: WrapperExit[] | undefined): Map<WrapperId, WrapperExit> {
+  const byWrapper = new Map<WrapperId, WrapperExit>();
+  if (exits === undefined) {
+    return byWrapper;
   }
-  const { referenceUsd, poolUsd } = input;
-  if (
-    !Number.isFinite(referenceUsd) ||
-    !Number.isFinite(poolUsd) ||
-    referenceUsd <= 0 ||
-    poolUsd <= 0
-  ) {
-    return EMPTY_REFERENCE;
+  for (const exit of exits) {
+    if (!WRAPPERS.includes(exit.wrapper) || byWrapper.has(exit.wrapper)) {
+      continue;
+    }
+    byWrapper.set(exit.wrapper, {
+      wrapper: exit.wrapper,
+      now: usableExitNow(exit.now),
+      availability:
+        typeof exit.availability === "object" && exit.availability !== null
+          ? exit.availability
+          : "unavailable",
+    });
   }
-  return {
-    referenceUsd,
-    poolUsd,
-    deviationRatio: Math.abs(poolUsd - referenceUsd) / referenceUsd,
-    multiplierNote: input.multiplierNote ?? "unavailable",
-  };
+  return byWrapper;
 }
 
-function buildRegime(input: RegimeInput | "unavailable" | undefined): Regime {
-  if (input === undefined || input === "unavailable") {
-    return EMPTY_REGIME;
+function usableExitNow(now: WrapperExit["now"]): WrapperExit["now"] {
+  if (typeof now !== "object" || now === null) {
+    return "unavailable";
   }
+  if (
+    !Number.isFinite(now.recoveredUsd) ||
+    !Number.isFinite(now.costRatio) ||
+    typeof now.simulatedAt !== "string"
+  ) {
+    return "unavailable";
+  }
+  return now;
+}
+
+/** Número usable: finito y positivo. Cualquier otra cosa es «sin dato», no un cero. */
+function usableNumber(
+  value: number | "unavailable" | null | undefined,
+): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : undefined;
+}
+
+/**
+ * El `Reference` de la pantalla sale de los precios crudos del candidato. El desvío
+ * se calcula igual que siempre; `multiplierNote` refleja lo que explicó la respuesta
+ * de la pregunta 3 (retorno total) o el multiplicador que vino en los datos.
+ */
+function buildReference(input: Q3Input | undefined, q3: Q3Result): Reference {
+  const referenceUsd = usableNumber(input?.referenceUsd);
+  const poolUsd = usableNumber(input?.tokenPriceUsd);
+  const multiplier = usableNumber(input?.sharesMultiplier);
+  const multiplierNote: Reference["multiplierNote"] =
+    q3.kind === "pass" && q3.code === "DEVIATION_IS_TOTAL_RETURN"
+      ? "total-return"
+      : multiplier === undefined
+        ? "unavailable"
+        : multiplier === 1
+          ? "none"
+          : "multiplier";
   return {
-    marketStatus: input.marketStatus,
-    nextOpenAt: input.nextOpenAt ?? "unavailable",
-    poolsAgree: input.poolsAgree ?? "unavailable",
-    bookFrozen: input.bookFrozen ?? "unavailable",
-    suggestSplit: input.suggestSplit ?? false,
+    referenceUsd: referenceUsd ?? "unavailable",
+    poolUsd: poolUsd ?? "unavailable",
+    deviationRatio:
+      referenceUsd !== undefined && poolUsd !== undefined
+        ? Math.abs(poolUsd - referenceUsd) / referenceUsd
+        : "unavailable",
+    multiplierNote,
   };
 }
 
