@@ -5,6 +5,7 @@ import type {
   QuoteGap,
   Reference,
   Regime,
+  WrapperExit,
 } from "@/lib/evaluate";
 import { isUnavailableReason, type Q1Result } from "@/lib/questions/q1-reasons";
 import {
@@ -131,6 +132,12 @@ function EvaluationDetail({ evaluation }: { evaluation: Evaluation }) {
             Faltó un dato de la pregunta {evaluation.question} (
             {QUESTION_TEXT[evaluation.question]}): {reasonText(evaluation.reason)}
           </p>
+          {evaluation.reference !== undefined && (
+            <ReferenceDetail reference={evaluation.reference} />
+          )}
+          {evaluation.quotes !== undefined && (
+            <QuotesTable quotes={evaluation.quotes} exits={evaluation.exits} />
+          )}
           <p>Sin inventar un precio, no se arma la transacción.</p>
           <QuoteGaps gaps={evaluation.quoteGaps} />
         </div>
@@ -159,13 +166,23 @@ function CutDetail({
         <QuotesTable quotes={evaluation.quotes} />
       )}
       {evaluation.question === 2 && (
-        <QuotesTable quotes={evaluation.quotes} />
+        <QuotesTable quotes={evaluation.quotes} exits={evaluation.exits} />
       )}
       {evaluation.question === 3 && (
-        <ReferenceDetail reference={evaluation.reference} />
+        <>
+          {evaluation.wrapper !== undefined && (
+            <p>Emisor candidato: {WRAPPER_LABEL[evaluation.wrapper]}</p>
+          )}
+          <ReferenceDetail reference={evaluation.reference} />
+        </>
       )}
       {evaluation.question === 4 && (
-        <RegimeDetail regime={evaluation.regime} />
+        <>
+          {evaluation.wrapper !== undefined && (
+            <p>Emisor candidato: {WRAPPER_LABEL[evaluation.wrapper]}</p>
+          )}
+          <RegimeDetail regime={evaluation.regime} />
+        </>
       )}
       {"quoteGaps" in evaluation && <QuoteGaps gaps={evaluation.quoteGaps} />}
       <p>No se arma la transacción.</p>
@@ -210,7 +227,7 @@ function PassDetail({
             {evaluation.constraints.violated.map(constraintText).join(", ")}.
           </p>
         )}
-      <QuotesTable quotes={evaluation.quotes} />
+      <QuotesTable quotes={evaluation.quotes} exits={evaluation.exits} />
       <QuoteGaps gaps={evaluation.quoteGaps} />
       <ReferenceDetail reference={evaluation.reference} />
       <RegimeDetail regime={evaluation.regime} />
@@ -249,7 +266,20 @@ function QuoteGaps({ gaps }: { gaps?: QuoteGap[] }) {
   );
 }
 
-function QuotesTable({ quotes }: { quotes: Quote[] }) {
+/**
+ * Las cotizaciones de compra y, cuando llegaron, la salida de cada emisor: cuánto se
+ * recupera vendiendo el mismo monto ahora y a qué costo. La venta que no se midió se
+ * lee «sin dato» (esa ruta no se puede firmar).
+ */
+function QuotesTable({
+  quotes,
+  exits,
+}: {
+  quotes: Quote[];
+  exits?: WrapperExit[];
+}) {
+  const exitOf = (wrapper: Quote["wrapper"]) =>
+    exits?.find((exit) => exit.wrapper === wrapper)?.now;
   return (
     <table className={styles.quotes} data-testid="cotizaciones">
       <thead>
@@ -258,17 +288,28 @@ function QuotesTable({ quotes }: { quotes: Quote[] }) {
           <th>Impacto</th>
           <th>Costo simulado</th>
           <th>Pregunta 1</th>
+          {exits !== undefined && <th>Salida ahora</th>}
         </tr>
       </thead>
       <tbody>
-        {quotes.map((quote) => (
-          <tr key={quote.wrapper}>
-            <td>{WRAPPER_LABEL[quote.wrapper]}</td>
-            <td>{formatPercent(quote.impactRatio)}</td>
-            <td>{formatUsd(quote.simulatedCostUsd)}</td>
-            <td>{authenticityText(quote.authenticity)}</td>
-          </tr>
-        ))}
+        {quotes.map((quote) => {
+          const now = exitOf(quote.wrapper);
+          return (
+            <tr key={quote.wrapper}>
+              <td>{WRAPPER_LABEL[quote.wrapper]}</td>
+              <td>{formatPercent(quote.impactRatio)}</td>
+              <td>{formatUsd(quote.simulatedCostUsd)}</td>
+              <td>{authenticityText(quote.authenticity)}</td>
+              {exits !== undefined && (
+                <td>
+                  {now === undefined || now === "unavailable"
+                    ? SIN_DATO
+                    : `${formatUsd(now.recoveredUsd)} (${formatPercent(now.costRatio)})`}
+                </td>
+              )}
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

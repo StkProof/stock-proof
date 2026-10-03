@@ -16,8 +16,8 @@ El detalle de producto está en el vault. Esta spec solo fija el comportamiento 
 1. El usuario escribe un ticker y un monto en dólares y pide la evaluación.
 2. StockProof responde la pregunta 1 y, solo si pasa, la pregunta 2. En ese orden.
 3. Pregunta 1 — «¿Este contrato es el real?». Se consulta la lista oficial y la attestation del ticker. Para bStocks, el token oficial cumple el estándar BEP-8056. Si el contrato no es el oficial, la pantalla corta: explica que falló la pregunta 1 y no arma la transacción.
-4. Pregunta 2 — «¿Esta orden entra?». Se simula ese monto en bStocks, Ondo y xStocks. Si algún wrapper llena con impacto menor o igual al 1%, la pantalla muestra el wrapper de menor impacto, el costo simulado y que la pregunta pasó. El botón de firma queda visible pero no envía la transacción (la firma real es de la ventana siguiente).
-5. Si los tres wrappers superan el 1% de impacto, la pantalla muestra el costo de cada uno, dice que falló la pregunta 2 y no arma la transacción.
+4. Pregunta 2 — «¿Esta orden entra **y sale**?». Se simula la compra de ese monto en bStocks, Ondo y xStocks **y la venta del mismo monto recién comprado** (Exit Now, `costRatio` medido con el `toTokenAmount` real de la compra). Un wrapper se puede firmar solo con las dos bajo el 1%. Si alguno cumple, la pantalla muestra el de menor impacto de compra, el costo simulado y que la pregunta pasó. El botón de firma queda visible pero no envía la transacción (la firma real es de la ventana siguiente).
+5. Si todos los wrappers superan el 1% en la compra, o los que la pasan no pueden salir bajo el tope, la pantalla muestra los costos — entrada y salida medidos — y dice que falló la pregunta 2. Si la venta ni siquiera cotizó, dice que no hay salida medible. En ambos casos no se arma la transacción y no se inventa un monto menor que pasaría.
 6. Las respuestas se leen en castellano, en una sola pantalla.
 
 ## Reparto
@@ -38,19 +38,20 @@ Entrada:
 - `ticker`: texto.
 - `amountUsd`: número.
 - `authenticity`: `{ listed, attested, standardOk }` o `"unavailable"`.
-- `quotes`: una cotización por cada wrapper (`bstocks`, `ondo`, `xstocks`) que cotizó, cada una con `impactRatio` (0.01 = 1%) y `simulatedCostUsd`, o `"unavailable"` cuando no llegó ninguna. Los wrappers sin cotización viajan aparte en `quoteGaps` con su motivo (`specs/cotizaciones-parciales.md`).
+- `quotes`: una cotización de compra por cada wrapper (`bstocks`, `ondo`, `xstocks`) que cotizó, cada una con `impactRatio` (0.01 = 1%) y `simulatedCostUsd`, o `"unavailable"` cuando no llegó ninguna. Los wrappers sin cotización viajan aparte en `quoteGaps` con su motivo (`specs/cotizaciones-parciales.md`).
+- `exits`: la venta del mismo monto ya cotizada por cada wrapper que compró — `now` con `costRatio` medido (la compuerta de salida) y `availability` con las reglas publicadas (informa, no decide). Una venta sin cotización es `"unavailable"`: ese wrapper no tiene salida medible y no firma.
 
 Resultado, uno solo:
 
 | `kind` | Cuándo | Qué muestra la pantalla |
 | --- | --- | --- |
 | `invalid` | Ticker vacío o monto que no es un número positivo | Pide corregir la entrada. No hay costos ni botón de firma |
-| `unavailable` | La lista no se pudo obtener o no llegó ninguna cotización | Dice que no se pudo evaluar. No inventa un precio ni arma la transacción |
+| `unavailable` | La lista no se pudo obtener, no llegó ninguna cotización, o ningún candidato tiene salida medible (`EXIT_NOW_UNAVAILABLE`) | Dice que no se pudo evaluar. No inventa un precio ni arma la transacción |
 | `cut` pregunta 1 | El ticker no está en la lista, no tiene attestation, o no cumple el estándar (BEP-8056 en bStocks) | Explica el corte. No muestra costos ni botón de firma |
-| `cut` pregunta 2 | Todos los impactos disponibles superan 1% | Muestra los costos que llegaron, qué venue no cotizó y el corte. No hay botón de firma |
-| `pass` | Algún wrapper está en 1% o menos | Nombra el wrapper de menor impacto, el costo simulado y, si hubo empate, que empató. El botón de firma se ve y no envía la transacción |
+| `cut` pregunta 2 | Todos los impactos de compra superan 1% (`IMPACT_OVER_LIMIT`) o las ventas medidas superan 1% (`EXIT_OVER_LIMIT`) | Muestra los costos que llegaron — de entrada y de salida —, qué venue no cotizó y el corte. No hay botón de firma |
+| `pass` | Algún wrapper entra y sale en 1% o menos | Nombra el wrapper de menor impacto de compra entre los que pueden firmar, el costo simulado y, si hubo empate, que empató. El botón de firma se ve y no envía la transacción |
 
-El desempate, de menor a mayor prioridad solo cuando el impacto es igual: bStocks, Ondo, xStocks. `pass.tied` es verdadero cuando otro wrapper igualó ese impacto.
+El desempate, de menor a mayor prioridad solo cuando el impacto de compra es igual entre los que pueden firmar: bStocks, Ondo, xStocks. `pass.tied` es verdadero cuando otro wrapper que puede firmar igualó ese impacto.
 
 La pregunta 1 se evalúa antes que la 2. Si la 1 corta, las cotizaciones no cambian el resultado.
 
@@ -59,14 +60,17 @@ La pregunta 1 se evalúa antes que la 2. Si la 1 corta, las cotizaciones no camb
 - [ ] Con un ticker cuyo contrato no está en la lista oficial, la pantalla muestra el corte de la pregunta 1 y no muestra costo de swap ni botón de firma (cómo se comprueba: e2e con la lista oficial sustituida por un doble de test).
 - [ ] Con un ticker oficial y un monto que un solo wrapper llena a ≤ 1% de impacto, la pantalla nombra ese wrapper y el costo simulado, y no arma una transacción (cómo se comprueba: e2e con cotizaciones sustituidas por un doble de test).
 - [ ] Con un ticker oficial y un monto que todos los wrappers que cotizaron superan el 1%, la pantalla muestra sus costos y el corte de la pregunta 2, sin botón de firma (cómo se comprueba: e2e con el mismo doble).
-- [ ] La decisión «pasa / corta» y el wrapper elegido son una función pura de la lista, la attestation y las simulaciones disponibles, independiente de la UI (cómo se comprueba: unitario sobre esa función, con los tres casos de arriba más el desempate de impacto).
+- [ ] Con la compra bajo el 1% pero la venta del mismo monto medida sobre el tope, la pantalla muestra el `costRatio` medido y el corte `EXIT_OVER_LIMIT`, sin firma; con la venta sin cotización, muestra que no hay salida medible y tampoco firma (cómo se comprueba: unitario sobre `evaluate` con salidas sustituidas por dobles).
+- [ ] La decisión «pasa / corta» y el wrapper elegido son una función pura de la lista, la attestation, las simulaciones de compra y venta disponibles, independiente de la UI (cómo se comprueba: unitario sobre esa función, con los casos de arriba más el desempate de impacto).
 - [ ] `npm run check` sigue en verde.
 
 ## Casos borde
 
 - Ticker vacío o monto que no es un número positivo: la pantalla pide corregir la entrada y no llama a las APIs.
 - La lista oficial no conoce el ticker: se trata como pregunta 1 fallida (no es el contrato real).
-- Dos wrappers empatan en impacto y ambos están ≤ 1%: se muestra uno y se nombra el empate. El orden de desempate queda fijado en el unitario (bStocks, después Ondo, después xStocks) porque el vault no lo especifica.
+- Dos wrappers empatan en impacto y ambos están ≤ 1% en compra y venta: se muestra uno y se nombra el empate. El orden de desempate queda fijado en el unitario (bStocks, después Ondo, después xStocks) porque el vault no lo especifica.
+- El de menor impacto de compra no puede salir bajo el tope: firma el siguiente que sí pueda; el empate solo se mide entre los que pueden firmar.
+- La venta no cotizó para ningún candidato: `EXIT_NOW_UNAVAILABLE`, «sin dato», no se firma. No se estima un monto menor por regla de tres ni se cotiza en loop.
 - Una API no responde o responde un error: la pantalla dice que no se pudo evaluar y no arma la transacción. No se inventa un precio.
 - bStocks sin attestation o sin estándar BEP-8056: pregunta 1 fallida.
 

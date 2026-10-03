@@ -44,6 +44,12 @@ export type AggregatedQuote = {
   impactRatio: number;
   /** Monto del token de salida (en unidades del token, no USD). */
   toAmount: number;
+  /**
+   * `toTokenAmount` tal cual vino de la API: unidades mínimas del token de salida,
+   * como cadena de enteros y sin pasar por float. Es el `amount` exacto de la venta
+   * inversa (Exit Now): la compra de 200 USDT devuelve los wei del token que se venden.
+   */
+  toTokenAmount: string;
   vendor: string;
   quoteId: string | null;
 };
@@ -124,14 +130,20 @@ export async function getAggregatedQuote(
     const impact = typeof item.priceImpactPercent === "string" || typeof item.priceImpactPercent === "number"
       ? Number(item.priceImpactPercent)
       : NaN;
-    const toAmount =
-      typeof item.toTokenAmount === "string" || typeof item.toTokenAmount === "number"
-        ? Number(item.toTokenAmount)
-        : NaN;
-    if (!Number.isFinite(impact) || !Number.isFinite(toAmount)) continue;
+    // El monto de salida viaja como cadena de enteros: Number pierde dígitos arriba de 2^53.
+    const toTokenAmount =
+      typeof item.toTokenAmount === "string" && item.toTokenAmount.length > 0
+        ? item.toTokenAmount
+        : typeof item.toTokenAmount === "number" && Number.isFinite(item.toTokenAmount)
+          ? item.toTokenAmount.toString()
+          : null;
+    if (!Number.isFinite(impact) || toTokenAmount === null) continue;
+    const toAmount = Number(toTokenAmount);
+    if (!Number.isFinite(toAmount)) continue;
     const quote: AggregatedQuote = {
       impactRatio: impact / 100,
       toAmount,
+      toTokenAmount,
       vendor: typeof item.vendorName === "string" ? item.vendorName : "desconocido",
       quoteId: typeof item.quoteId === "string" ? item.quoteId : null,
     };

@@ -17,6 +17,7 @@ describe("quoteExitNow", () => {
     const quote = vi.fn<typeof getAggregatedQuote>(async () => ({
       impactRatio: 0.004,
       toAmount: 199_000_000_000_000_000_000,
+      toTokenAmount: "199000000000000000000",
       vendor: "LiquidMesh",
       quoteId: "q1",
     }));
@@ -53,6 +54,7 @@ describe("quoteExitNow", () => {
     const quote: typeof getAggregatedQuote = async () => ({
       impactRatio: 0.004,
       toAmount: 199_000_000_000_000_000_000,
+      toTokenAmount: "199000000000000000000",
       vendor: "LiquidMesh",
       quoteId: "q1",
     });
@@ -75,6 +77,7 @@ describe("quoteExitNow", () => {
     const quote: typeof getAggregatedQuote = async () => ({
       impactRatio: -0.03,
       toAmount: 194_000_000_000_000_000_000,
+      toTokenAmount: "194000000000000000000",
       vendor: "LiquidMesh",
       quoteId: "q2",
     });

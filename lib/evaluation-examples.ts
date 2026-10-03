@@ -1,4 +1,5 @@
-import { evaluate, type ExitBlock, type Quote } from "@/lib/evaluate";
+import { evaluate, type ExitBlock, type Quote, type WrapperExit } from "@/lib/evaluate";
+import type { Q3Input } from "@/lib/questions/q3";
 
 const OK = { ok: true } as const;
 
@@ -45,27 +46,40 @@ function quotes(
   ];
 }
 
-const liquidExit: ExitBlock = {
-  now: {
-    recoveredUsd: 198.4,
-    costRatio: 0.008,
-    simulatedAt: "2026-09-28T12:00:05Z",
-  },
-  availability: {
-    marketStatus: "closed",
-    nextOpenAt: "2026-09-28T13:30:00Z",
-    mintRedeemHours: "unavailable",
-    redemptionVenue: "Binance (conversión 1:1, no en el pool)",
-    source: { name: "Binance RWA Data" },
-  },
-  risk: [
-    {
-      code: "POOL_DISPERSION",
-      value: 0.012,
-      source: { name: "Binance Market API" },
-      observedAt: "2026-09-28T12:00:00Z",
-    },
-  ],
+function sell(recoveredUsd: number, costRatio: number): ExitBlock["now"] {
+  return { recoveredUsd, costRatio, simulatedAt: "2026-09-27T18:12:00Z" };
+}
+
+/** Salidas por wrapper cotizado: `now` es la compuerta; `availability` informa. */
+function exits(
+  now: Partial<Record<Quote["wrapper"], ExitBlock["now"]>>,
+  availability: Partial<Record<Quote["wrapper"], ExitBlock["availability"]>> = {},
+): WrapperExit[] {
+  return (Object.keys(now) as Quote["wrapper"][]).map((wrapper) => ({
+    wrapper,
+    now: now[wrapper] ?? "unavailable",
+    availability: availability[wrapper] ?? "unavailable",
+  }));
+}
+
+/** Precios crudos de la pregunta 3, uno por wrapper cotizado. */
+function prices(
+  entries: Partial<Record<Quote["wrapper"], Omit<Q3Input, "wrapper">>>,
+): Q3Input[] {
+  return (Object.keys(entries) as Quote["wrapper"][]).map((wrapper) => ({
+    wrapper,
+    tokenPriceUsd: "unavailable",
+    referenceUsd: "unavailable",
+    ...entries[wrapper],
+  }));
+}
+
+const bstocksAvailability: ExitBlock["availability"] = {
+  marketStatus: "closed",
+  nextOpenAt: "2026-09-28T13:30:00Z",
+  mintRedeemHours: "unavailable",
+  redemptionVenue: "Binance (conversión 1:1, no en el pool)",
+  source: { name: "Binance RWA Data" },
 };
 
 /** Estados que la pantalla tiene que poder mostrar, salidos de evaluate. */
@@ -95,11 +109,30 @@ export const evaluationExamples = {
     quotes: quotes(0.001, 0.002, 0.003),
   }),
 
-  /** Monto que ningún pool absorbe a ≤ 1% (escena 2 del video). */
+  /** Monto que ningún pool absorbe a ≤ 1% en la compra (escena 2 del video). */
   cutQuestion2: evaluate({
     ticker: "NVDA",
     amountUsd: 10_000,
     quotes: quotes(0.018, 0.063, 0.02, 10_000),
+    exits: exits(
+      { bstocks: sell(9_500, 0.05), ondo: sell(8_900, 0.11) },
+      { bstocks: bstocksAvailability },
+    ),
+  }),
+
+  /**
+   * La compra entra pero vender el mismo monto ahora supera el tope: el corte del
+   * nombre fino un sábado (escena extra del video, `Diferenciador.md`). La venta
+   * medida se muestra en la tabla de salidas.
+   */
+  cutExitNow: evaluate({
+    ticker: "SPCXB",
+    amountUsd: 2_000,
+    quotes: quotes(0.008, 0.011, 0.015, 2_000),
+    exits: exits(
+      { bstocks: sell(1_952, 0.024), ondo: sell(1_940, 0.03) },
+      { bstocks: bstocksAvailability },
+    ),
   }),
 
   /** Monto chico en nombre líquido: pasa con referencia, régimen y bloque de salida (escena 1). */
@@ -107,46 +140,43 @@ export const evaluationExamples = {
     ticker: "QQQB",
     amountUsd: 200,
     quotes: quotes(0.004, 0.008, 0.012),
-    reference: { referenceUsd: 500.12, poolUsd: 500.9, multiplierNote: "none" },
+    exits: exits(
+      // Ondo también entraba barato, pero su venta medida pasa del tope: no se firma.
+      { bstocks: sell(198.4, 0.008), ondo: sell(197.6, 0.012), xstocks: "unavailable" },
+      { bstocks: bstocksAvailability },
+    ),
+    reference: prices({
+      bstocks: { tokenPriceUsd: 500.12, referenceUsd: 500.12, sharesMultiplier: 1.0008 },
+      ondo: { tokenPriceUsd: 512.4, referenceUsd: 500.12 },
+      xstocks: { tokenPriceUsd: 500.3, referenceUsd: 500.12, sharesMultiplier: 1 },
+    }),
     regime: {
       marketStatus: "closed",
       nextOpenAt: "2026-09-28T13:30:00Z",
-      poolsAgree: true,
-      bookFrozen: false,
+      poolsDiffRatio: 0.0002,
+      bookFrozen: true,
     },
-    exit: liquidExit,
   }),
 
   /**
-   * Nombre fino un sábado (escena 5): pasa, pero el mercado está cerrado y el bloque
-   * de salida muestra qué se recupera ahora, cuándo abre y qué señales hay.
-   * `exit.availability` llega en «sin dato» para mostrar ese camino también.
+   * Nombre fino un sábado con monto chico (escena 5): la venta de US$ 45 sí se midió
+   * bajo el tope, así que firma, pero el mercado está cerrado, el libro queda clavado
+   * en el comprobante y la disponibilidad de salida llega en «sin dato».
    */
   passThinNameSinDato: evaluate({
     ticker: "SPCXB",
     amountUsd: 45,
     quotes: quotes(0.009, 0.011, 0.015, 45),
+    exits: exits({ bstocks: sell(44.6, 0.009), ondo: "unavailable" }),
+    reference: prices({
+      bstocks: { tokenPriceUsd: 412.8, referenceUsd: 412.8 },
+      ondo: { tokenPriceUsd: "unavailable", referenceUsd: 412.8 },
+    }),
     regime: {
       marketStatus: "closed",
       nextOpenAt: "2026-09-28T13:30:00Z",
       bookFrozen: true,
       suggestSplit: true,
-    },
-    exit: {
-      now: {
-        recoveredUsd: 44.2,
-        costRatio: 0.018,
-        simulatedAt: "2026-09-27T18:12:00Z",
-      },
-      availability: "unavailable",
-      risk: [
-        {
-          code: "OFF_HOURS_WEEKEND",
-          value: "emisor fuera de horario de EE. UU.",
-          source: { name: "Binance RWA Data" },
-          observedAt: "2026-09-27T18:00:00Z",
-        },
-      ],
     },
   }),
 } as const;

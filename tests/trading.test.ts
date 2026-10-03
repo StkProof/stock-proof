@@ -47,6 +47,7 @@ describe("getAggregatedQuote", () => {
     expect(quote).toEqual({
       impactRatio: expect.closeTo(0.003),
       toAmount: 0.87,
+      toTokenAmount: "0.87",
       vendor: "rapido",
       quoteId: "q2",
     });
