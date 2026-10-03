@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Wordmark } from "./wordmark";
 
@@ -34,10 +35,10 @@ export function SiteHeader() {
           </a>
         ))}
       </nav>
-      <a className="nav-cta" href="#demo">
+      <Link className="nav-cta" href="/app">
         Probar
         <span aria-hidden="true">↗</span>
-      </a>
+      </Link>
       <button
         className="menu-toggle"
         type="button"
@@ -47,6 +48,18 @@ export function SiteHeader() {
       >
         {open ? "Cerrar" : "Menú"}
       </button>
+    </header>
+  );
+}
+
+/** Encabezado de la app: solo el logo, que vuelve a la landing. */
+export function AppHeader() {
+  return (
+    <header className="header app-header section-shell">
+      <a href="#main" className="skip-link">
+        Saltar al contenido
+      </a>
+      <Wordmark />
     </header>
   );
 }

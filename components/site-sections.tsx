@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { QUESTION_TEXT } from "./messages";
 import { Wordmark } from "./wordmark";
 
@@ -75,10 +76,10 @@ export function SiteHero() {
           y qué hace falta para salir. <strong>Antes de comprometerte.</strong>
         </p>
         <div className="hero-action">
-          <a className="button" href="#demo">
+          <Link className="button" href="/app">
             Ver la operación
             <span aria-hidden="true">↗</span>
-          </a>
+          </Link>
           <span className="mono muted">Menos confianza ciega. Más prueba.</span>
         </div>
       </div>
@@ -284,10 +285,10 @@ export function SiteStory() {
           <br />
           <em>Mirá la operación.</em>
         </h2>
-        <a className="button" href="#demo">
+        <Link className="button" href="/app">
           Probar una evaluación
           <span aria-hidden="true">↗</span>
-        </a>
+        </Link>
       </section>
     </>
   );
