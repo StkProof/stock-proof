@@ -251,4 +251,17 @@
   .detailList {
     grid-template-columns: 1fr;
   }
+
+  .quotes {
+    display: block;
+    overflow-x: auto;
+    table-layout: auto;
+  }
+
+  .quotes th,
+  .quotes td {
+    padding-right: 1rem;
+    overflow-wrap: normal;
+    white-space: nowrap;
+  }
 }

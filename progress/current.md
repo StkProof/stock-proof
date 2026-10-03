@@ -87,3 +87,10 @@
 - No bloqueante 1, resuelto: `e2e/landing.spec.ts` comprueba en cada pestaña que no haya un botón «Firmar swap» habilitado.
 - No bloqueante 2, resuelto: `dispose` llama a `renderer.forceContextLoss()` (`components/operation-scene.tsx`).
 - `npm run check` sigue en verde (Node 20: 219 unitarios, 20 e2e). El resto de los no bloqueantes quedan anotados para otra tarea.
+
+### Ajuste de espaciado de la muestra (líder, 2026-10-03, pedido de Agustín)
+
+- El resultado de la muestra no tenía padding (pegaba al borde): ahora usa la misma escala que `.demo-output` de la app (2 rem; 1,25 rem en móvil). Más aire entre el título y las pestañas, en las pestañas, en la leyenda y en el pie.
+- La escena llena el alto visible (`clamp(30rem, 100vh - 6.5rem, 46rem)`) para no dejar un hueco al lado del resultado largo; la columna del resultado gana ancho (1fr / 1,1fr).
+- En ≤ 760 px la tabla de cotizaciones (compartida con `/app`) deja de partir palabras: celdas en una línea y desliza de costado dentro de su caja, sin desbordar la página.
+- Solo CSS. `npm run check` en verde (219 unitarios, 20 e2e).
