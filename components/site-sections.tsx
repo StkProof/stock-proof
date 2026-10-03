@@ -75,7 +75,7 @@ export function SiteHero() {
           y qué hace falta para salir. <strong>Antes de comprometerte.</strong>
         </p>
         <div className="hero-action">
-          <a className="button" href="#demo">
+          <a className="button" href="/operar">
             Ver la operación
             <span aria-hidden="true">↗</span>
           </a>
@@ -284,7 +284,7 @@ export function SiteStory() {
           <br />
           <em>Mirá la operación.</em>
         </h2>
-        <a className="button" href="#demo">
+        <a className="button" href="/operar">
           Probar una evaluación
           <span aria-hidden="true">↗</span>
         </a>

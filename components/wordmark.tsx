@@ -1,6 +1,6 @@
-export function Wordmark() {
+export function Wordmark({ href = "#top" }: { href?: string }) {
   return (
-    <a className="wordmark" href="#top" aria-label="StockProof, inicio">
+    <a className="wordmark" href={href} aria-label="StockProof, inicio">
       <span className="brand-symbol" aria-hidden="true">
         s<span>p</span>
       </span>

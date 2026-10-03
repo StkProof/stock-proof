@@ -14,11 +14,9 @@ Esta spec cambia la cara. No cambia la unión `Evaluation`, los códigos de moti
 
 ## Comportamiento esperado
 
-Al abrir `/` se ve la home editorial en castellano: una sola `h1` («Ves la compra.»), el recorrido de la operación y, en el medio, el formulario de evaluación.
+Al abrir `/` se ve la portada editorial en castellano: una sola `h1` («Ves la compra.») y el relato. El formulario no está en esta ruta. Los llamados «Probar», «Ver la operación» y «Probar una evaluación» van a `/operar`. Esa pantalla está en `specs/presentacion.md`.
 
-El formulario sigue pidiendo ticker, monto en USD y dirección de contrato opcional. Un selector de escena elige un ejemplo de `lib/evaluation-examples.ts` o la consulta en vivo (`POST /api/evaluate`). La escena por defecto sigue siendo el ejemplo que pasa (`pass`), para que el demo no dependa de la red. La entrada inválida (ticker vacío o monto que no es un número positivo) se resuelve en la pantalla, sin llamar a la red.
-
-Después de evaluar, el resultado se lee de `Evaluation` y queda visible de una vez (no hay pasos que oculten un estado):
+En `/operar`, el resultado se lee de `Evaluation` y queda visible de una vez (no hay pasos que oculten un estado):
 
 - Prueba: el veredicto (`Se puede firmar`, `No hay transacción`, `No se pudo evaluar`, `Revisá la entrada`).
 - Las cuatro preguntas, en el orden 1–4, con `Pasó`, `No pasó`, `Sin dato` o `No se evaluó`.
@@ -30,8 +28,8 @@ La pantalla no vuelve a decidir el corte ni recalcula costos.
 
 ## Criterios de aceptación
 
-- [x] `/` muestra la `h1` «Ves la compra.» y el formulario (e2e).
-- [x] Los siete recorridos de `e2e/pantalla.spec.ts` siguen encontrando los mismos textos y `data-testid` (`resultado`, `pregunta-1`…`pregunta-4`, `ruta-ganadora`, `cotizaciones`, `bloque-salida`, `salida-ahora`, `salida-disponibilidad`, `regimen`).
+- [x] `/` muestra la `h1` «Ves la compra.» y no el formulario. «Probar» va a `/operar` (e2e).
+- [x] Los recorridos de `e2e/pantalla.spec.ts` siguen encontrando los mismos textos y `data-testid` en `/operar` (`resultado`, `pregunta-1`…`pregunta-4`, `ruta-ganadora`, `cotizaciones`, `bloque-salida`, `salida-ahora`, `salida-disponibilidad`, `regimen`).
 - [x] Un `quoteGap` se muestra con el emisor y una frase en castellano, nunca con el código crudo (unitario de `quoteGapText`).
 - [x] En un viewport de 390 px de ancho, la home no genera scroll horizontal (e2e).
 - [x] `npm run check` en verde.
@@ -56,5 +54,5 @@ La pantalla no vuelve a decidir el corte ni recalcula costos.
 
 - Los tokens (papel `#f4f2eb`, tinta `#20211f`, violeta `#603be4`) viven en `app/globals.css`. El resultado sigue en `components/stock-proof.module.css`, usando esas variables.
 - El castellano de la evaluación sigue en `components/messages.ts`. La home habla castellano, con voseo, como el resto de la pantalla.
-- El selector de escena y la dirección opcional quedan a la vista: el e2e y la escena del contrato impostor los necesitan.
-- Los cuatro momentos del recorrido son títulos de lo que ya se muestra. No son pestañas que oculten el resultado.
+- El formulario salió de la portada. Vive en `/operar`, como fija `specs/presentacion.md`.
+- Los cuatro momentos del relato son títulos de la portada. No son pestañas que oculten el resultado.
