@@ -9,7 +9,7 @@ async function evaluar(
     escena,
   }: { ticker?: string; monto?: string; direccion?: string; escena?: string } = {},
 ) {
-  await page.goto("/");
+  await page.goto("/app");
   if (ticker !== "") {
     await page.getByLabel("Ticker").fill(ticker);
   }
@@ -25,24 +25,37 @@ async function evaluar(
   await page.getByRole("button", { name: "Evaluar" }).click();
 }
 
-test("la home editorial muestra la frase y el formulario", async ({ page }) => {
-  await page.goto("/");
+test("la app muestra el formulario con un encabezado mínimo", async ({ page }) => {
+  const scripts: string[] = [];
+  page.on("request", (request) => {
+    if (request.resourceType() === "script") scripts.push(request.url());
+  });
+  await page.goto("/app");
 
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "Ves la compra.",
+    "Evaluá la operación.",
   );
   await expect(page.getByLabel("Ticker")).toBeVisible();
   await expect(page.getByLabel("Monto en USD")).toBeVisible();
   await expect(page.getByLabel(/Dirección del contrato/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Evaluar" })).toBeVisible();
   await expect(page.getByTestId("resultado")).toHaveCount(0);
+
+  // Sin la navegación de la landing ni la escena 3D.
+  await expect(page.getByRole("link", { name: "El producto" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Abrir navegación" })).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(0);
+  expect(scripts.filter((url) => /three/i.test(url))).toEqual([]);
+
+  // El logo vuelve a la landing.
+  await page.getByRole("link", { name: "StockProof, inicio" }).first().click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Ves la compra.");
 });
 
-test("en 390px la home no se desborda y el menú abre la navegación", async ({
-  page,
-}) => {
+test("en 390px la app no se desborda", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto("/app");
 
   const overflows = await page.evaluate(
     () =>
@@ -50,13 +63,10 @@ test("en 390px la home no se desborda y el menú abre la navegación", async ({
       document.documentElement.clientWidth + 1,
   );
   expect(overflows).toBe(false);
-
-  await page.getByRole("button", { name: "Abrir navegación" }).click();
-  await expect(page.getByRole("link", { name: "El producto" })).toBeVisible();
 });
 
 test("la frase pide el contrato real y un tope de costo", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/app");
 
   await expect(page.getByText(/si el contrato es el real/)).toBeVisible();
   await expect(page.getByLabel("Tope de costo")).toHaveValue("1");
@@ -88,7 +98,7 @@ for (const { tope, esperado } of [
       });
     });
 
-    await page.goto("/");
+    await page.goto("/app");
     await page.getByLabel("Ticker").fill("NVDA");
     await page.getByLabel("Monto en USD").fill("200");
     await page.getByLabel("Tope de costo").fill(tope);
