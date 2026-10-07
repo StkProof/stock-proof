@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluate,
-  IMPACT_LIMIT,
   type Evaluation,
   type ExitBlock,
   type Quote,
@@ -13,6 +12,7 @@ import { evaluationExamples } from "@/lib/evaluation-examples";
 import { impactRatioFromPercent } from "@/lib/phrase";
 import type { Q1Result } from "@/lib/questions/q1-reasons";
 import type { Q3Input } from "@/lib/questions/q3";
+import { IMPACT_LIMIT } from "@/lib/thresholds";
 
 const OK: Q1Result = { ok: true };
 const NOT_LISTED: Q1Result = { ok: false, reason: "CONTRACT_NOT_LISTED" };

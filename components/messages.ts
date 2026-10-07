@@ -1,4 +1,12 @@
 import type { ConstraintCode, QuestionId, WrapperId } from "@/lib/evaluate";
+import { IMPACT_LIMIT } from "@/lib/thresholds";
+
+/** Un umbral en fracción a «1%» / «0,7%»: sin decimales sobrantes ni espacio. */
+export function limitPercentText(ratio: number): string {
+  return `${(ratio * 100).toLocaleString("es-AR", { maximumFractionDigits: 2 })}%`;
+}
+
+const IMPACT_LIMIT_TEXT = limitPercentText(IMPACT_LIMIT);
 
 /**
  * Textos de la pantalla (la lógica devuelve códigos; el castellano lo escribe acá).
@@ -26,9 +34,9 @@ const REASON_TEXT: Record<string, string> = {
   ATTESTATION_UNAVAILABLE: "La attestation no se pudo consultar.",
   CHAIN_UNAVAILABLE: "La cadena no respondió.",
   // Pregunta 2
-  IMPACT_OVER_LIMIT: "Ningún emisor llena este monto con un impacto del 1% o menos.",
+  IMPACT_OVER_LIMIT: `Ningún emisor llena este monto con un impacto del ${IMPACT_LIMIT_TEXT} o menos.`,
   QUOTES_UNAVAILABLE: "No se pudieron obtener las simulaciones de costo.",
-  EXIT_OVER_LIMIT: "Vender este monto ahora cuesta más del 1%: ese emisor no tiene salida bajo el tope.",
+  EXIT_OVER_LIMIT: `Vender este monto ahora cuesta más del ${IMPACT_LIMIT_TEXT}: ese emisor no tiene salida bajo el tope.`,
   EXIT_NOW_UNAVAILABLE: "La venta de este monto no se pudo medir: no hay salida medible.",
   // Pregunta 3
   PRICE_MATCHES: "El precio del token coincide con el de la acción.",

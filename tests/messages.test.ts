@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { Q2_CUT_REASONS, WRAPPERS, type QuestionId } from "@/lib/evaluate";
+import { describe, expect, it, vi } from "vitest";
+import { WRAPPERS, type QuestionId } from "@/lib/evaluate";
 import { Q1_CUT_REASONS, Q1_UNAVAILABLE_REASONS } from "@/lib/questions/q1-reasons";
+import { Q2_CUT_REASONS } from "@/lib/questions/q2-reasons";
 import {
   Q3_CUT_REASONS,
   Q3_PASS_CODES,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/questions/q3-reasons";
 import { Q4_CUT_REASONS } from "@/lib/questions/q4-reasons";
 import {
+  limitPercentText,
   QUESTION_TEXT,
   quoteGapText,
   reasonText,
@@ -39,6 +41,35 @@ describe("reasonText", () => {
     const text = reasonText("CODIGO_QUE_NO_EXISTE");
     expect(text).toBe("Motivo no reconocido.");
     expect(text).not.toContain("CODIGO_QUE_NO_EXISTE");
+  });
+});
+
+describe("el umbral en los textos de corte", () => {
+  it("los dos cortes de la pregunta 2 dicen el 1% de hoy", () => {
+    expect(reasonText("IMPACT_OVER_LIMIT")).toContain("del 1% o menos");
+    expect(reasonText("EXIT_OVER_LIMIT")).toContain("más del 1%:");
+  });
+
+  it("si el umbral cambia, el texto lo sigue", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/thresholds", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/lib/thresholds")>()),
+      IMPACT_LIMIT: 0.007,
+    }));
+    try {
+      const messages = await import("@/components/messages");
+      expect(messages.reasonText("IMPACT_OVER_LIMIT")).toContain("del 0,7% o menos");
+      expect(messages.reasonText("EXIT_OVER_LIMIT")).toContain("más del 0,7%:");
+    } finally {
+      vi.doUnmock("@/lib/thresholds");
+      vi.resetModules();
+    }
+  });
+
+  it("el porcentaje no arrastra decimales sobrantes ni espacio", () => {
+    expect(limitPercentText(0.01)).toBe("1%");
+    expect(limitPercentText(0.007)).toBe("0,7%");
+    expect(limitPercentText(0.0125)).toBe("1,25%");
   });
 });
 

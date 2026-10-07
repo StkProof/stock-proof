@@ -9,7 +9,7 @@ import type { ExitBlock, WrapperId } from "@/lib/evaluate";
 /**
  * Exit Now: la capa `now` del bloque de salida (`Diferenciador.md`). Vale para este
  * instante — no proyecta el precio de mañana — y `costRatio` es comparable con
- * `IMPACT_LIMIT` de `lib/evaluate.ts`, igual que la entrada.
+ * `IMPACT_LIMIT` de `lib/thresholds.ts`, igual que la entrada.
  */
 export type ExitNowQuote = Exclude<ExitBlock["now"], "unavailable">;
 

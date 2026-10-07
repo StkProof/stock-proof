@@ -20,7 +20,7 @@ La base de la semana 1 es `lib/evaluate.ts`: dado el ticker, el monto, la attest
 
 | Quién | Dónde | Qué no hace |
 |---|---|---|
-| Lógica | `lib/evaluate.ts` y `tests/evaluate.test.ts` | No dibuja la pantalla ni llama a Binance |
+| Lógica | `lib/evaluate.ts` (orquesta), una pregunta por archivo en `lib/questions/`, umbrales en `lib/thresholds.ts`; tests en `tests/` | No dibuja la pantalla ni llama a Binance |
 | Frontend / producto | `app/`, leyendo `lib/evaluation-examples.ts` | No reimplementa el corte |
 | APIs | un adaptador futuro que arme la entrada de `evaluate` | No elige el wrapper por su cuenta |
 

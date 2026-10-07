@@ -1,12 +1,6 @@
-import type { WrapperId } from "@/lib/evaluate";
+import type { Reference, WrapperId } from "@/lib/evaluate";
 import type { Q3Result } from "@/lib/questions/q3-reasons";
-
-/**
- * Tolerancia de punto flotante para «es el mismo número», no un umbral de desvío.
- * Absorbe el error de una multiplicación (~1e-13 relativo); la regla del vault no fija
- * porcentaje: o el precio es el de la acción, o el desvío tiene una causa conocida.
- */
-const FLOAT_TOLERANCE = 1e-9;
+import { PRICE_MATCH_TOLERANCE } from "@/lib/thresholds";
 
 export type Q3Input = {
   wrapper: WrapperId;
@@ -70,5 +64,33 @@ function usableMultiplier(
 }
 
 function samePrice(a: number, b: number): boolean {
-  return Math.abs(a - b) <= FLOAT_TOLERANCE * Math.max(Math.abs(a), Math.abs(b));
+  return Math.abs(a - b) <= PRICE_MATCH_TOLERANCE * Math.max(Math.abs(a), Math.abs(b));
+}
+
+/**
+ * El `Reference` de la pantalla sale de los precios crudos del candidato. El desvío
+ * se calcula igual que siempre; `multiplierNote` refleja lo que explicó la respuesta
+ * de la pregunta 3 (retorno total) o el multiplicador que vino en los datos.
+ */
+export function buildReference(input: Q3Input | undefined, q3: Q3Result): Reference {
+  const referenceUsd = usablePrice(input?.referenceUsd);
+  const poolUsd = usablePrice(input?.tokenPriceUsd);
+  const multiplier = usableMultiplier(input?.sharesMultiplier);
+  const multiplierNote: Reference["multiplierNote"] =
+    q3.kind === "pass" && q3.code === "DEVIATION_IS_TOTAL_RETURN"
+      ? "total-return"
+      : multiplier === undefined
+        ? "unavailable"
+        : multiplier === 1
+          ? "none"
+          : "multiplier";
+  return {
+    referenceUsd: referenceUsd ?? "unavailable",
+    poolUsd: poolUsd ?? "unavailable",
+    deviationRatio:
+      referenceUsd !== undefined && poolUsd !== undefined
+        ? Math.abs(poolUsd - referenceUsd) / referenceUsd
+        : "unavailable",
+    multiplierNote,
+  };
 }

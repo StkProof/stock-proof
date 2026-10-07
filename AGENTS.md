@@ -44,7 +44,7 @@ Next.js 15 + React 19 + TypeScript, copiado de la plantilla Next.js de `agent-ha
 
 ## Dónde trabaja cada parte
 
-- **Lógica**: `lib/evaluate.ts`. La decisión de las preguntas 1 y 2. Los tests están en `tests/evaluate.test.ts`.
+- **Lógica**: cada pregunta decide en su archivo de `lib/questions/` (`q1-gate.ts`, `q2.ts`, `q3.ts`, `q4.ts`), con sus tests en `tests/`. `lib/evaluate.ts` solo valida la entrada y las llama en orden (`tests/evaluate.test.ts`). Los umbrales viven solo en `lib/thresholds.ts`: ningún número suelto en otro lado.
 - **Pantalla**: `app/`. Consume el resultado de `evaluate` y no vuelve a decidir el corte. Los cinco estados de ejemplo están en `lib/evaluation-examples.ts`.
 - **APIs de Binance**: todavía no existen. Cuando se agreguen, traducen la respuesta oficial a la entrada de `evaluate`. La key no entra al browser.
 
