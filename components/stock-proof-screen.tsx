@@ -8,47 +8,86 @@ import { EvaluationResult } from "./evaluation-result";
 
 type SceneKey = keyof typeof evaluationExamples;
 
+/** Lo que la frase muestra cuando se elige un caso ya calculado. */
+type DemoCase = {
+  key: SceneKey;
+  label: string;
+  ticker: string;
+  amount: string;
+  address: string;
+  limit: string;
+};
+
 /**
- * El selector elige un resultado ya computado (las escenas del video) o la
- * consulta en vivo. La pantalla no decide el corte: o muestra el ejemplo, o
- * muestra lo que devuelve `POST /api/evaluate`.
+ * El selector elige un resultado ya computado o la consulta en vivo.
+ * La pantalla no decide el corte: o muestra el ejemplo, o muestra lo que
+ * devuelve `POST /api/evaluate`.
  */
-const SCENES: { key: SceneKey; label: string }[] = [
-  { key: "pass", label: "Pasa: nombre líquido, monto chico (QQQB, US$ 200)" },
+const CASES: DemoCase[] = [
+  { key: "pass", label: "Pasa", ticker: "QQQB", amount: "200", address: "", limit: "1" },
   {
     key: "passThinNameSinDato",
-    label: "Pasa: nombre fino un sábado, con «sin dato» (SPCXB, US$ 45)",
+    label: "Nombre fino, con un dato que falta",
+    ticker: "SPCXB",
+    amount: "45",
+    address: "",
+    limit: "1",
   },
   {
     key: "passTopeFrase",
-    label: "Pasa, pero el tope de la frase no se cumple (QQQB, US$ 200)",
+    label: "El tope de la frase no se cumple",
+    ticker: "QQQB",
+    amount: "200",
+    address: "",
+    limit: "0,3",
   },
   {
     key: "cutQuestion1",
-    label: "Corta en la pregunta 1: contrato impostor",
+    label: "Corta: el contrato no es el real",
+    ticker: "NVDA",
+    amount: "200",
+    address: "0x000000000000000000000000000000000000dead",
+    limit: "1",
   },
   {
     key: "cutQuestion2",
-    label: "Corta en la pregunta 2: el monto no entra",
+    label: "Corta: el monto no entra",
+    ticker: "NVDA",
+    amount: "10000",
+    address: "",
+    limit: "1",
   },
   {
     key: "cutExitNow",
-    label: "Corta en salida: vender ahora supera el tope (SPCXB, US$ 2.000)",
+    label: "Corta: vender ahora sale caro",
+    ticker: "SPCXB",
+    amount: "2000",
+    address: "",
+    limit: "1",
   },
-  { key: "unavailable", label: "No se pudo evaluar: la lista no respondió" },
-  { key: "invalid", label: "Entrada inválida" },
+  {
+    key: "unavailable",
+    label: "No se pudo evaluar",
+    ticker: "NVDA",
+    amount: "200",
+    address: "",
+    limit: "1",
+  },
+  { key: "invalid", label: "Entrada inválida", ticker: "", amount: "0", address: "", limit: "1" },
 ];
 
+const OPENING = CASES[0];
 const LIVE = "live";
 
 export function StockProofScreen() {
-  const [scene, setScene] = useState<SceneKey | typeof LIVE>("pass");
-  const [ticker, setTicker] = useState("");
-  const [amount, setAmount] = useState("");
-  const [address, setAddress] = useState("");
-  const [limit, setLimit] = useState("1");
+  const [scene, setScene] = useState<SceneKey | typeof LIVE>(OPENING.key);
+  const [ticker, setTicker] = useState(OPENING.ticker);
+  const [amount, setAmount] = useState(OPENING.amount);
+  const [address, setAddress] = useState(OPENING.address);
+  const [showAddress, setShowAddress] = useState(false);
+  const [limit, setLimit] = useState(OPENING.limit);
   const [limitError, setLimitError] = useState(false);
-  const [result, setResult] = useState<Evaluation | null>(null);
+  const [result, setResult] = useState<Evaluation | null>(evaluationExamples.pass);
   const [loading, setLoading] = useState(false);
   const tickerRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -61,6 +100,30 @@ export function StockProofScreen() {
     update();
     setResult(null);
     setLimitError(false);
+  }
+
+  function applyCase(key: SceneKey) {
+    const demo = CASES.find((item) => item.key === key) ?? OPENING;
+    setScene(demo.key);
+    setTicker(demo.ticker);
+    setAmount(demo.amount);
+    setAddress(demo.address);
+    setShowAddress(demo.address.length > 0);
+    setLimit(demo.limit);
+    setLimitError(false);
+    setResult(evaluationExamples[demo.key]);
+  }
+
+  function chooseScene(value: string) {
+    if (value === LIVE) {
+      setScene(LIVE);
+      setAddress("");
+      setShowAddress(false);
+      setLimitError(false);
+      setResult(null);
+      return;
+    }
+    applyCase(value as SceneKey);
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -185,33 +248,41 @@ export function StockProofScreen() {
             )}
             <p className="input-hint">Tu ticker. Tu monto. Tu tope. Tu decisión.</p>
             <div className="secondary-fields">
+              {showAddress ? (
+                <label>
+                  Dirección del contrato a revisar (opcional)
+                  <input
+                    name="direccion"
+                    type="text"
+                    placeholder="0x…"
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={address}
+                    onChange={(event) => edit(() => setAddress(event.target.value))}
+                  />
+                </label>
+              ) : (
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => setShowAddress(true)}
+                >
+                  Revisar un contrato
+                </button>
+              )}
               <label>
-                Dirección del contrato a revisar (opcional)
-                <input
-                  name="direccion"
-                  type="text"
-                  placeholder="0x…"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={address}
-                  onChange={(event) => edit(() => setAddress(event.target.value))}
-                />
-              </label>
-              <label>
-                Escena
+                Caso
                 <select
                   name="escena"
                   value={scene}
-                  onChange={(event) =>
-                    edit(() => setScene(event.target.value as SceneKey | typeof LIVE))
-                  }
+                  onChange={(event) => chooseScene(event.target.value)}
                 >
-                  <option value={LIVE}>En vivo (consulta a Binance)</option>
-                  {SCENES.map(({ key, label }) => (
+                  {CASES.map(({ key, label }) => (
                     <option key={key} value={key}>
-                      Demo: {label}
+                      {label}
                     </option>
                   ))}
+                  <option value={LIVE}>En vivo</option>
                 </select>
               </label>
             </div>
@@ -243,7 +314,7 @@ export function StockProofScreen() {
         </div>
       </div>
       <p className="demo-disclaimer">
-        Las escenas de ejemplo muestran un resultado ya calculado. La escena en vivo
+        Los casos de ejemplo muestran un resultado ya calculado. «En vivo»
         consulta Binance. Ninguna de las dos es consejo de inversión ni una orden
         para firmar.
       </p>
