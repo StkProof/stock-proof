@@ -36,7 +36,7 @@ Next.js 15 + React 19 + TypeScript, copiado de la plantilla Next.js de `agent-ha
 
 ## Forma de trabajo en git
 
-- `main` está protegido: no se pushea directo ni se fuerza. Todo entra por pull request con 1 aprobación y el check `check` (CI) en verde.
+- `main` no tiene protección en GitHub, pero la regla sigue siendo del equipo: no se pushea directo ni se fuerza. Todo entra por pull request con el check `check` (CI) en verde. La aprobación de otra persona es bienvenida, no obligatoria (decisión de Agustín, 7 oct 2026).
 - Una rama corta por tarea del tablero, desde `main` actualizado: `tipo/descripcion-corta` (`feat/`, `fix/`, `docs/`, `chore/`, `test/`).
 - Pull requests chicos, unidos el mismo día o el siguiente. Una rama que vive más de dos días es la que termina en conflicto.
 - Se une solo con squash; la rama se borra sola al unir.
