@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getAggregatedQuote, USDT_BSC } from "@/lib/binance/trading";
 import type { SignRequest } from "@/lib/binance/rwa";
-import { IMPACT_LIMIT } from "@/lib/evaluate";
+import { IMPACT_LIMIT } from "@/lib/thresholds";
 import { quoteExitNow } from "@/lib/questions/exit-now";
 
 const NVDAB = "0x02fca66c1d1afb4e2a7884261eb00f63598a7436";

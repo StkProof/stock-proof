@@ -1,15 +1,12 @@
-import {
-  isUnavailableReason,
-  type Q1CutReason,
-  type Q1Result,
-} from "@/lib/questions/q1-reasons";
-import { decideQuestion3, type Q3Input } from "@/lib/questions/q3";
-import type { Q3CutReason, Q3Result } from "@/lib/questions/q3-reasons";
+import { checkConstraints } from "@/lib/questions/constraints";
+import { checkTarget, decideQuestion1 } from "@/lib/questions/q1-gate";
+import type { Q1CutReason, Q1Result } from "@/lib/questions/q1-reasons";
+import { decideQuestion2 } from "@/lib/questions/q2";
+import type { Q2CutReason } from "@/lib/questions/q2-reasons";
+import { buildReference, decideQuestion3, type Q3Input } from "@/lib/questions/q3";
+import type { Q3CutReason } from "@/lib/questions/q3-reasons";
 import { decideQuestion4, type Q4Input } from "@/lib/questions/q4";
 import type { Q4CutReason, Q4Result } from "@/lib/questions/q4-reasons";
-
-/** Umbral de impacto de la pregunta 2: 1% = 0.01. */
-export const IMPACT_LIMIT = 0.01;
 
 /** Orden de desempate cuando el impacto es igual. El primero gana. */
 export const WRAPPERS = ["bstocks", "ondo", "xstocks"] as const;
@@ -85,7 +82,7 @@ export type ExitBlock = {
   now:
     | {
         recoveredUsd: number;
-        /** Comparable con IMPACT_LIMIT: si lo supera, el agente puede negarse igual que en la entrada. */
+        /** Comparable con `IMPACT_LIMIT` (`lib/thresholds.ts`): si lo supera, el agente puede negarse igual que en la entrada. */
         costRatio: number;
         /** ISO 8601 UTC; la pantalla muestra la edad («hace 5 s»). */
         simulatedAt: string;
@@ -116,13 +113,6 @@ export type Constraints = {
 export type ConstraintCode = "MAX_IMPACT_RATIO" | "MAX_DEVIATION_RATIO";
 
 export type QuestionId = 1 | 2 | 3 | 4;
-
-/**
- * Códigos de corte de la pregunta 2. `IMPACT_OVER_LIMIT` es la compra; `EXIT_OVER_LIMIT`
- * es la venta del mismo monto medida por encima del tope (Exit Now es compuerta).
- */
-export const Q2_CUT_REASONS = ["IMPACT_OVER_LIMIT", "EXIT_OVER_LIMIT"] as const;
-export type Q2CutReason = (typeof Q2_CUT_REASONS)[number];
 
 /**
  * La salida traída para un wrapper que cotizó la compra. `now` es la venta del mismo
@@ -257,11 +247,10 @@ const EMPTY_REGIME: Regime = {
  * Las cuatro preguntas, en orden (regla del vault, 30 sep 2026). No llama a la red:
  * quien consulta las APIs arma la entrada. Si una falla, no hay transacción.
  *
- * La pregunta 2 es compuerta doble: un wrapper se puede firmar solo si la compra
- * **y la venta del mismo monto** (Exit Now, `exits[].now.costRatio`) están bajo
- * `IMPACT_LIMIT`. Si la venta no se midió, ese wrapper no se firma — fail closed.
- * Las preguntas 3 y 4 las resuelven `decideQuestion3` y `decideQuestion4` sobre el
- * candidato ganador; la disponibilidad de salida informa y nunca elimina.
+ * Solo orquesta: cada pregunta decide en su archivo de `lib/questions/` y los umbrales
+ * viven en `lib/thresholds.ts`. Acá se valida la entrada, se llama a cada pregunta en
+ * orden y se arma el resultado. Las preguntas 3 y 4 corren sobre el ganador de la 2;
+ * la disponibilidad de salida informa y nunca elimina.
  */
 export function evaluate(input: EvaluateInput): Evaluation {
   const ticker = input.ticker.trim();
@@ -287,18 +276,15 @@ export function evaluate(input: EvaluateInput): Evaluation {
         };
 
   if (input.target !== undefined) {
-    const check = input.target.check;
-    if (check === "unavailable") {
-      return { kind: "unavailable", question: 1, reason: "LIST_UNAVAILABLE", ...gaps };
+    const target = checkTarget(input.target.check);
+    if (target.kind === "unavailable") {
+      return { kind: "unavailable", question: 1, reason: target.reason, ...gaps };
     }
-    if (!check.ok) {
-      if (isUnavailableReason(check.reason)) {
-        return { kind: "unavailable", question: 1, reason: check.reason, ...gaps };
-      }
+    if (target.kind === "cut") {
       return {
         kind: "cut",
         question: 1,
-        reason: check.reason,
+        reason: target.reason,
         address: input.target.address,
         ...gaps,
       };
@@ -310,82 +296,25 @@ export function evaluate(input: EvaluateInput): Evaluation {
     return { kind: "unavailable", question: 2, reason: "QUOTES_UNAVAILABLE", ...gaps };
   }
 
-  const eligible = quotes.filter((quote) => quote.authenticity.ok);
-  if (eligible.length === 0) {
-    // Si alguna pregunta 1 quedó sin verificar, es «no se pudo evaluar» (fail closed), no impostor.
-    const unverified = quotes.find(
-      (quote) => !quote.authenticity.ok && isUnavailableReason(quote.authenticity.reason),
-    );
-    if (unverified && !unverified.authenticity.ok) {
-      return {
-        kind: "unavailable",
-        question: 1,
-        reason: unverified.authenticity.reason,
-        ...gaps,
-      };
-    }
-    // Todas fallaron con motivo de corte: el motivo es el del que hubiera ganado por impacto.
-    const cheapest = [...quotes].sort((a, b) => a.impactRatio - b.impactRatio)[0];
-    const reason: Q1CutReason =
-      !cheapest.authenticity.ok && !isUnavailableReason(cheapest.authenticity.reason)
-        ? cheapest.authenticity.reason
-        : "CONTRACT_NOT_LISTED";
-    return { kind: "cut", question: 1, reason, quotes, ...gaps };
+  const q1 = decideQuestion1(quotes);
+  if (q1.kind === "unavailable") {
+    return { kind: "unavailable", question: 1, reason: q1.reason, ...gaps };
+  }
+  if (q1.kind === "cut") {
+    return { kind: "cut", question: 1, reason: q1.reason, quotes, ...gaps };
   }
 
-  const fitting = eligible.filter((quote) => quote.impactRatio <= IMPACT_LIMIT);
-  if (fitting.length === 0) {
-    return {
-      kind: "cut",
-      question: 2,
-      reason: "IMPACT_OVER_LIMIT",
-      quotes,
-      ...exits,
-      ...gaps,
-    };
+  const q2 = decideQuestion2(q1.eligible, exitByWrapper);
+  if (q2.kind === "cut") {
+    return { kind: "cut", question: 2, reason: q2.reason, quotes, ...exits, ...gaps };
   }
-
-  // La venta del mismo monto es compuerta, a la par de la compra: firma solo el
-  // wrapper con las dos medidas bajo el tope. Venta sin cotizar = no se firma.
-  const signable = fitting.filter((quote) => {
-    const now = exitByWrapper.get(quote.wrapper)?.now;
-    return now !== "unavailable" && now !== undefined && now.costRatio <= IMPACT_LIMIT;
-  });
-
-  if (signable.length === 0) {
-    const measuredOverLimit = fitting.some((quote) => {
-      const now = exitByWrapper.get(quote.wrapper)?.now;
-      return now !== "unavailable" && now !== undefined && now.costRatio > IMPACT_LIMIT;
-    });
-    if (measuredOverLimit) {
-      return {
-        kind: "cut",
-        question: 2,
-        reason: "EXIT_OVER_LIMIT",
-        quotes,
-        ...exits,
-        ...gaps,
-      };
-    }
-    return {
-      kind: "unavailable",
-      question: 2,
-      reason: "EXIT_NOW_UNAVAILABLE",
-      quotes,
-      ...exits,
-      ...gaps,
-    };
+  if (q2.kind === "unavailable") {
+    // Sin ganador no hay nada medido que mostrar; la venta sin medir sí muestra lo cotizado.
+    return q2.reason === "QUOTES_UNAVAILABLE"
+      ? { kind: "unavailable", question: 2, reason: q2.reason, ...gaps }
+      : { kind: "unavailable", question: 2, reason: q2.reason, quotes, ...exits, ...gaps };
   }
-
-  const bestImpact = Math.min(...signable.map((quote) => quote.impactRatio));
-  const atBest = signable.filter((quote) => quote.impactRatio === bestImpact);
-  const winner = WRAPPERS.map((wrapper) =>
-    atBest.find((quote) => quote.wrapper === wrapper),
-  ).find((quote): quote is Quote => quote !== undefined);
-
-  if (winner === undefined) {
-    return { kind: "unavailable", question: 2, reason: "QUOTES_UNAVAILABLE", ...gaps };
-  }
+  const { winner, tied } = q2;
 
   // Pregunta 3 sobre el candidato: explica el desvío (multiplier o retorno total) o
   // corta. Un precio que no llegó es «no se pudo evaluar»: fail closed, no se firma.
@@ -462,7 +391,7 @@ export function evaluate(input: EvaluateInput): Evaluation {
     address: winner.address,
     impactRatio: winner.impactRatio,
     simulatedCostUsd: winner.simulatedCostUsd,
-    tied: atBest.length > 1,
+    tied,
     quotes,
     ...exits,
     reference,
@@ -552,66 +481,4 @@ function usableExitNow(now: WrapperExit["now"]): WrapperExit["now"] {
     return "unavailable";
   }
   return now;
-}
-
-/** Número usable: finito y positivo. Cualquier otra cosa es «sin dato», no un cero. */
-function usableNumber(
-  value: number | "unavailable" | null | undefined,
-): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? value
-    : undefined;
-}
-
-/**
- * El `Reference` de la pantalla sale de los precios crudos del candidato. El desvío
- * se calcula igual que siempre; `multiplierNote` refleja lo que explicó la respuesta
- * de la pregunta 3 (retorno total) o el multiplicador que vino en los datos.
- */
-function buildReference(input: Q3Input | undefined, q3: Q3Result): Reference {
-  const referenceUsd = usableNumber(input?.referenceUsd);
-  const poolUsd = usableNumber(input?.tokenPriceUsd);
-  const multiplier = usableNumber(input?.sharesMultiplier);
-  const multiplierNote: Reference["multiplierNote"] =
-    q3.kind === "pass" && q3.code === "DEVIATION_IS_TOTAL_RETURN"
-      ? "total-return"
-      : multiplier === undefined
-        ? "unavailable"
-        : multiplier === 1
-          ? "none"
-          : "multiplier";
-  return {
-    referenceUsd: referenceUsd ?? "unavailable",
-    poolUsd: poolUsd ?? "unavailable",
-    deviationRatio:
-      referenceUsd !== undefined && poolUsd !== undefined
-        ? Math.abs(poolUsd - referenceUsd) / referenceUsd
-        : "unavailable",
-    multiplierNote,
-  };
-}
-
-function checkConstraints(
-  constraints: Constraints | undefined,
-  winner: Quote,
-  reference: Reference,
-): { violated: ConstraintCode[] } | undefined {
-  if (constraints === undefined) {
-    return undefined;
-  }
-  const violated: ConstraintCode[] = [];
-  if (
-    constraints.maxImpactRatio !== undefined &&
-    winner.impactRatio > constraints.maxImpactRatio
-  ) {
-    violated.push("MAX_IMPACT_RATIO");
-  }
-  if (
-    constraints.maxDeviationRatio !== undefined &&
-    typeof reference.deviationRatio === "number" &&
-    reference.deviationRatio > constraints.maxDeviationRatio
-  ) {
-    violated.push("MAX_DEVIATION_RATIO");
-  }
-  return { violated };
 }

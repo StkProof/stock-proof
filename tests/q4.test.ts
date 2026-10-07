@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  decideQuestion4,
-  POOLS_DIVERGENCE_LIMIT,
-  type Q4Input,
-} from "@/lib/questions/q4";
+import { decideQuestion4, type Q4Input } from "@/lib/questions/q4";
 import { Q4_CUT_REASONS } from "@/lib/questions/q4-reasons";
+import { POOLS_DIVERGENCE_LIMIT } from "@/lib/thresholds";
 
 function input(overrides: Partial<Q4Input> = {}): Q4Input {
   return { marketStatus: "open", ...overrides };

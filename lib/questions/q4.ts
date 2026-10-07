@@ -1,13 +1,6 @@
 import type { Regime } from "@/lib/evaluate";
 import type { Q4Result } from "@/lib/questions/q4-reasons";
-
-/**
- * Cuánto pueden diferir dos pools del mismo ticker y seguir «coincidiendo». Fracción,
- * como los demás ratios (0.001 = 0,1%). Medido en el tape de bStocks: QQQB discrepa
- * 0,012% entre pools y convive con el libro clavado; en un nombre fino la discrepancia
- * del mismo minuto llegó a 0,239% (`../vault-stockproof/Dolores.md` §3 y §5).
- */
-export const POOLS_DIVERGENCE_LIMIT = 0.001;
+import { POOLS_DIVERGENCE_LIMIT } from "@/lib/thresholds";
 
 /**
  * Lo que la pregunta 4 mira, ya traído. La función es pura: no llama a la red y no
