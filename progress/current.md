@@ -1,123 +1,96 @@
-# Tarea: Textos de motivo y frase de tope
+# Tarea: Separar la landing de la app
 
-- Estado: terminada (revisor aprobó en la segunda vuelta, 3 oct 2026)
-- Spec: specs/textos-motivo-y-frase.md (Estado: en implementación — Luciano aprobó el alcance el 2 oct 2026)
-- Rama: `feat/textos-y-frase`, rebasada sobre `main` (`2e05e8b`, después de #45)
-- Issues: #21 y #23. #11 y #20 no se rehacen: se confirman en el tablero.
+- Estado: terminada (revisor aprobó, 3 oct 2026)
+- Spec: specs/landing-y-app.md (Estado: aprobada — Agustín, 3 oct 2026: «Aprobada. Usa librerías como three.js para el dinamismo»)
+- Rama: `feat/landing-y-app`, desde `main` (`cfe570a`, después de #44)
+- Issue: N/A. Esta vez la pantalla la manejamos nosotros (decisión de Agustín).
 - Criterios de aceptación (de la spec):
-  - [x] `reasonText` cubre los códigos de las preguntas 3 y 4, sin mostrar el código.
-  - [x] `signalText` traduce `POOL_DISPERSION` y `OFF_HOURS_WEEKEND` (unitario). En las escenas que pasan, `salida-riesgo` dice «sin dato» sin código crudo (e2e).
-  - [x] La oración pide el contrato real y un tope. Un tope inválido no evalúa. En vivo, el tope viaja con punto decimal y no viaja si está vacío (e2e con la ruta interceptada).
-  - [x] `passTopeFrase` muestra «Se puede firmar» y «tope de impacto», con la firma deshabilitada.
-  - [x] `buildEvaluateInput` reenvía el tope solo si es un número finito mayor a cero, y no lo inventa (unitario).
-  - [x] La ruta convierte `maxImpactPercent` a fracción y omite el inválido sin responder 400 (unitario `tests/evaluate-route.test.ts`).
-  - [x] Un tope igual al impacto ganador no se viola (unitario).
-  - [x] `npm run check` en verde (3 oct 2026, Node 20: eslint, tsc, 214 unitarios, 15 e2e).
-- Revisión: ver abajo.
-- Plan: frases en `messages.ts` → señales sin código crudo → tope de la oración y reenvío en la ruta → ejemplo `passTopeFrase` → tests → `npm run check`.
+  - [x] `/` muestra la `h1` «Ves la compra.» y no tiene campos de ticker, monto ni tope (e2e `e2e/landing.spec.ts`).
+  - [x] Pestañas de la muestra: arranca en «Pasa»; «Corta en la salida» y «Contrato impostor» cambian el resultado; ninguna firma activa ni llamada a `/api/evaluate` (e2e).
+  - [x] `data-recorrido` sigue la pestaña (e2e). `operationStops` y `pulseStop` son puras y tienen unitario (`tests/question-statuses.test.ts`).
+  - [x] Con `reducedMotion: "reduce"` la escena marca `data-movimiento="reducido"` y dibuja un cuadro fijo (e2e; se salta si el navegador no tiene WebGL).
+  - [x] `/app` no tiene `canvas` y no pide ningún script de three (e2e en `e2e/pantalla.spec.ts`).
+  - [x] «Probar» y «Ver la operación» llevan a `/app` (e2e).
+  - [x] Los recorridos de `e2e/pantalla.spec.ts` pasan contra `/app`.
+  - [x] `/app` sin links de secciones ni menú; el logo vuelve a `/` (e2e).
+  - [x] 390 px sin scroll horizontal en `/` y en `/app` (e2e).
+  - [x] `npm run check` en verde (3 oct 2026, Node 20: eslint, tsc, 219 unitarios, 20 e2e).
+- Revisión: Aprobado — ver `## Revisión` al final.
+- Plan: mover `questionStatuses` a `lib/` → ruta `/app` con `AppHeader` → muestra con pestañas en `/` → escena three.js → links a `/app` → e2e repartidos → `npm run check`.
 - Decisiones:
-  - La oración dice «no supera el», para coincidir con `impact > maxImpactRatio`. `evaluate` no se toca.
-  - El cuerpo HTTP manda por ciento (`maxImpactPercent`). La entrada de `evaluate` recibe la fracción.
-  - Las escenas de ejemplo ignoran el tope tipeado. La escena por defecto sigue siendo `pass`.
-  - Un tope inválido en el POST se omite. La pantalla, en cambio, no evalúa.
+  - `questionStatuses` pasó a `lib/question-statuses.ts`. La escena y la lista del resultado usan la misma función, así que la escena no decide nada.
+  - La firma es la quinta parada: pasa solo si la evaluación es `pass`.
+  - three.js se importa con `import("three")` dentro del componente cliente. `/app` no lo baja (verificado en el navegador y fijado en el e2e).
+  - Sin `@react-three/fiber`: es una sola escena chica.
+  - La escena se pausa fuera de pantalla y con la pestaña oculta. Al desmontar libera geometrías, materiales y el renderer.
+  - El e2e de movimiento reducido espera la marca `data-webgl` hasta 20 s: con el servidor de desarrollo en frío, compilar three tarda más que los 5 s por defecto.
 - Notas:
-  - La tarea anterior (`pantalla-landing`) quedó archivada en `progress/history/2026-10-02-pantalla-landing.md`. Ya está en `main`.
-- Rebase sobre `main` con el cableado (#45, 3 oct 2026):
-  - `messages.ts`: quedan las frases de la pregunta 3 de esta spec y se suman `EXIT_OVER_LIMIT` y `EXIT_NOW_UNAVAILABLE` del cableado.
-  - `passTopeFrase` se reescribió con la entrada nueva (`exits` por emisor, precios crudos de la pregunta 3, `poolsDiffRatio`); sigue dando `violated: ["MAX_IMPACT_RATIO"]`.
-  - `buildEvaluateInput` manda `exits` y además `constraints`; ya no existe el `exit: "unavailable"` global.
-  - En el conflicto de `tests/evaluation-input.test.ts` no se conservó el unitario «reference y regime del token de bStocks»: #45 ya lo había quitado de `main` porque probaba el formato viejo de `reference`.
-  - `exit.risk` queda «sin dato» hasta la issue #19: los e2e de las escenas que pasan ahora esperan «sin dato» en `salida-riesgo`, sin código crudo. `signalText` sigue cubierto por `tests/messages.test.ts`. Spec actualizada.
-  - La tarea del cableado quedó archivada en `progress/history/2026-10-03-cableado-evaluate.md`.
+  - La tarea anterior (textos de motivo y frase de tope) quedó archivada en `progress/history/2026-10-03-textos-y-frase.md`. Ya está en `main` (#44).
+  - `npm install three @types/three` reportó 9 vulnerabilidades de dependencias que ya estaban; three no trae dependencias propias.
 
 ## Revisión
 
-**Veredicto: Rechazado en la primera vuelta; aprobado en la segunda (ver abajo).** Revisor: revisor general estricto (harness, Cursor), 2026-10-03, sobre `feat/textos-y-frase` (`4f4b4b0` sobre `origin/main` `2e05e8b`, working tree limpio antes de esta sección).
-
-El código cumple la spec y el `check` está en verde. Se rechaza por cobertura: la validación del cuerpo HTTP en el servidor (`maxImpactPercent`) no tiene ningún test, y tres bordes que la spec nombra no tienen test aunque los criterios dicen «(unitario)». Los cuatro arreglos son solo tests; no hace falta tocar código de producción.
+- **Veredicto: Aprobado.**
+- Revisor: revisor general (agente, Cursor), 2026-10-03. Cambios sin commitear sobre `cfe570a`.
 
 ### Comandos corridos
 
-- `git log --oneline -3`, `git status --short` (limpio), `git diff --stat origin/main` (17 archivos, +455/−96) y `git diff origin/main` completo.
-- `npm run check` con Node `v20.20.2` (el de CI) — **en verde**: eslint limpio, `tsc --noEmit` limpio, **200 unitarios** (15 archivos) y **13 e2e** de Playwright.
-- `python3 ~/.agents/skills/check-map/check_map.py $(git diff --name-only origin/main)` — sale **`1`**: «no hay docs/mapa-agentes.json». No es `2`. Mismo hueco que en `main` (ya anotado en la revisión del cableado); no es de esta tarea.
-- Rebase: `git range-diff 17d11b5~1..17d11b5 origin/main..HEAD`; `diff` de `progress/history/2026-10-03-cableado-evaluate.md` contra `origin/main:progress/current.md` (**idéntico**); `diff` de `progress/history/2026-10-02-pantalla-landing.md` y de la spec contra `17d11b5`. Las únicas líneas de `main` que el diff borra son las tres frases provisionales de la pregunta 3 (`messages.ts`), el `<code>` crudo de la señal y la frase vieja de la home: todas reemplazadas a propósito. No se perdió nada de #45 (`EXIT_OVER_LIMIT`, `EXIT_NOW_UNAVAILABLE`, `exits`, `reference` por emisor siguen) ni de #44 (frases, `signalText`, `phrase.ts`, ruta, pantalla, `passTopeFrase`, tests).
-- `node -e` descartable para la frontera en punto flotante: `0.7/100 = 0.006999999999999999`, así que `0.007 > 0.7/100` es `true`. En vivo no muerde porque `lib/binance/trading.ts:144` también divide el porcentaje de la API por 100 (mismo float en las dos puntas), pero ningún test lo fija.
-- Búsqueda de secretos en el diff (`api key|secret|private|BINANCE_`): solo una línea de contexto ya presente en `main`. Sin `.env` tocado, sin push ni deploy.
+- `node -v && npm run check` con Node 20 → `v20.20.2`, salida **0**: eslint y tsc limpios, **219/219** unitarios (17 archivos, incluye `tests/question-statuses.test.ts` con 5), **20/20** e2e. El e2e de movimiento reducido **corrió** (no se salteó: el Chromium de prueba tiene WebGL).
+- Mutaciones temporales (copia en `/tmp`, restauradas con `cp` y verificadas con `sha256sum -c`: los 4 archivos `OK`):
+  - `operationStops` con la firma siempre `passed` (`lib/question-statuses.ts:41`) → 3 unitarios y el e2e «la muestra cambia de ejemplo» fallan.
+  - `const reduced = false` (`components/operation-scene.tsx:90`) → falla «la escena dibuja un cuadro fijo» (`data-movimiento="animado"`).
+  - `Wordmark` con `href="#top"` (`components/wordmark.tsx:5`) → falla «la app muestra el formulario con un encabezado mínimo» (`toHaveURL`).
+  - Pestañas con `onClick` vacío (`components/example-showcase.tsx:67`) → falla el e2e de la muestra.
+- Script de Playwright contra el dev de `:3000`: `/` pide `…node_modules_three_build_three_module_js.js`; `/app` pide **0** scripts de three. El filtro `/three/i` de `e2e/pantalla.spec.ts:48` detecta three de verdad.
+- `check-map` → sale **1** («no hay docs/mapa-agentes.json»), igual que en `main` y en las dos revisiones anteriores. No es `2`; hueco del repo, no de esta tarea.
+- `git diff HEAD --name-only` y `ls`: `.env` no aparece tocado; sin keys ni secretos en `app/`, `components/`, `lib/question-statuses.ts`, `e2e/landing.spec.ts`. `package-lock.json` suma `three` y `@types/three` con las dependencias de tipos de este último (`@types/webxr`, `@webgpu/types`, `fflate`, `meshoptimizer`, etc., todas de desarrollo).
 
-### Criterios verificados contra código
+### Criterios verificados
 
-- Textos: frases de pase, corte y «sin dato» de la pregunta 3 y corte de la 4 en `components/messages.ts:33-43`, en tercera persona; las de `EXIT_*` del cableado se conservan (`:31-32`). `signalText` con genérico en `:46-54`; la pantalla ya no muestra `<code>` y la clave del `li` es `code-observedAt` (`components/evaluation-result.tsx:495-496`).
-- Frase: «Comprame US$ [monto] de [ticker] si el contrato es el real y el costo no supera el [tope] %.» (`components/stock-proof-screen.tsx` en el `p.intent-sentence`), tope inicial `"1"`, mensaje propio «El tope tiene que ser un porcentaje mayor a cero y como máximo 100.» con `aria-describedby`.
-- Orden de validación: ticker y monto primero (`stock-proof-screen.tsx:70-75`), después el tope (`:76-82`), después la escena (`:83-86`). Solo «En vivo» llega al `fetch`; `maxImpactPercent` va con punto decimal y solo si el tope no está vacío (`:97-99`).
-- `impactRatioFromPercent` (`lib/phrase.ts:6-12`): vacío → `undefined`, inválido (≤ 0, > 100, no finito) → `null`, válido → fracción. Las dos puntas la usan (decisión técnica de la spec).
-- Ruta (`app/api/evaluate/route.ts:30-35`, `:41-45`): `readImpactRatio` acepta string o number; inválido → `undefined` → se omite, sin 400; las cuatro preguntas corren igual.
-- `buildEvaluateInput` (`lib/evaluation-input.ts:134`, `:138-145`): `constraints` solo con número finito > 0; si no vino, no aparece.
-- `evaluate` sin cambios: la comparación sigue siendo `winner.impactRatio > constraints.maxImpactRatio` (`lib/evaluate.ts:603-608`); `lib/evaluate.ts` no está en el diff. La pantalla muestra `constraints` solo si `violated` no está vacío (`evaluation-result.tsx:224-228`), no decide el corte.
-- `passTopeFrase` (`lib/evaluation-examples.ts:161-183`): sale de `evaluate` con la entrada nueva; impacto ganador 0,4 %, tope 0,3 %.
-- Arquitectura: `lib/phrase.ts` es puro y no importa nada del servidor; la key sigue solo en la ruta. Sin cambios fuera de alcance (no hay `maxDeviationRatio` en la frase, la firma sigue deshabilitada, la escena por defecto sigue siendo `pass`).
-- Spec: «en implementación (Luciano aprobó el alcance el 2 oct 2026)». Cuenta como aprobada para implementar: es una aprobación humana escrita del alcance, con el mismo formato que `specs/pantalla-landing.md` (ya en `main`). La aprobación final la da el PR (1 aprobación requerida). `progress/current.md:3` apunta a la spec.
-- Tamaño: +455/−96, de los que ~150 son `progress/history` archivado y ~90 la spec. Código de producción ~160 líneas. Revisable de una sentada.
+- `h1` «Ves la compra.» y sin Ticker/Monto/Tope/Evaluar en `/`: `app/page.tsx:11` (sin `StockProofScreen`); e2e `e2e/landing.spec.ts:3-11`.
+- Muestra arranca en «Pasa», cambia a «Corta en la salida» y «Contrato impostor», sin llamadas a `/api/evaluate`: `components/example-showcase.tsx:10-15,25-29`; e2e `e2e/landing.spec.ts:13-53`.
+- Escena refleja la pestaña con `data-recorrido`: `components/operation-scene.tsx:75`; estados de `operationStops` → `questionStatuses` (`lib/question-statuses.ts:37-43`); el pulso usa `pulseStop` (`lib/question-statuses.ts:46-49`), que solo busca la primera parada no pasada. La escena no decide el corte. Unitario: `tests/question-statuses.test.ts:30-40` ata las paradas a la lista del resultado para todos los ejemplos.
+- Movimiento reducido: cuadro fijo (`components/operation-scene.tsx:90-91,289-292`, sin `requestAnimationFrame`); e2e `e2e/landing.spec.ts:71-82`.
+- `/app` sin three: `import("three")` dinámico (`components/operation-scene.tsx:49`), `OperationScene` solo se usa en `example-showcase.tsx`, que solo importa `app/page.tsx`; e2e `e2e/pantalla.spec.ts:28-55` (sin `canvas`, sin script de three).
+- «Probar», «Ver la operación» y «Probar una evaluación» → `/app`: `components/site-header.tsx:38`, `components/site-sections.tsx:79,288`; e2e `e2e/landing.spec.ts:55-69`.
+- Recorridos de `e2e/pantalla.spec.ts` contra `/app` (`goto("/app")` en las líneas 12, 30, 58, 69, 101): todos pasan.
+- `/app` sin links de secciones ni menú, logo a `/`: `components/site-header.tsx:55-64`, `components/wordmark.tsx:5`; e2e `e2e/pantalla.spec.ts:45-55`.
+- 390 px sin scroll horizontal: `e2e/landing.spec.ts:84-95` y `e2e/pantalla.spec.ts:56-66`.
+- Título propio de `/app`: `app/app/page.tsx:6-10`. Pie con la advertencia: `SiteFooter` en `app/app/page.tsx:27`.
 
-### Tests revisados
+### Accesibilidad y recursos
 
-- `tests/phrase.test.ts`: vacío y espacios → `undefined`; «1», «0,5» (coma) y «100» → fracción; «0», «-1», «100.1», «abc», «NaN» → `null`. Comportamiento real, cubre los bordes de parseo.
-- `tests/messages.test.ts:18-58`: todos los códigos de las listas `Q3_*` y `Q4_CUT_REASONS` tienen frase que no es el genérico ni contiene el código; `signalText` traduce las dos señales y un desconocido no sale crudo.
-- `tests/evaluation-input.test.ts:256-268`: con `maxImpactRatio: 0.005` llega `constraints`; sin él, `constraints` es `undefined`.
-- `tests/evaluate.test.ts:740-743`: `passTopeFrase` es `pass` con `violated` exactamente `["MAX_IMPACT_RATIO"]`.
-- `e2e/pantalla.spec.ts:58-63` (frase y tope «1»), `:65-74` (tope «0» → mensaje y sin `resultado`; si faltara la validación, el clic pintaría el `pass` y el test fallaría), `:101-103` y `:245-247` (`salida-riesgo` dice «sin dato» y no muestra el código), `:250-259` (`passTopeFrase`: «Se puede firmar», «tope de impacto», firma deshabilitada).
+- Pestañas: `role="tablist"`/`tab`/`tabpanel`, `aria-selected`, `aria-controls`, `aria-labelledby`, tabindex móvil y flechas izquierda/derecha con foco (`components/example-showcase.tsx:31-38,53-80`); e2e prueba `ArrowRight` + foco (`e2e/landing.spec.ts:45-48`). Escena `aria-hidden` (`operation-scene.tsx:73`).
+- Al desmontar: `cancelled` evita crear la escena si `import()` resuelve tarde; `dispose` cancela el frame, desconecta los observers, libera geometrías y materiales recorriendo la escena (incluida la geometría actual del tramo), `renderer.dispose()` y saca el canvas (`operation-scene.tsx:57-61,298-312`). Pausa fuera de pantalla y con la pestaña oculta (`:269,283-286`). Sin WebGL: `try/catch` y `data-webgl="no"` (`:82-87`).
 
 ### Hallazgos bloqueantes
 
-1. **La validación del cuerpo HTTP no tiene test** (`app/api/evaluate/route.ts:30-35`, `:41-45`). La spec dice «Un tope inválido en el cuerpo se omite y las cuatro preguntas igual corren. No responde 400» (Comportamiento y Casos borde), y AGENTS.md pone esa validación en el servidor. No hay ningún test de la ruta. **Arreglo**: `tests/evaluate-route.test.ts` que haga `vi.mock("@/lib/evaluation-input")` (espiar `buildEvaluateInput`, `realInputDeps` como stub) y llame a `POST(new Request(..., { body }))`. Casos: `"0.5"` → `maxImpactRatio` 0.005; `0.5` numérico → 0.005; `"0"`, `"150"`, `"abc"`, `true`, `null` → la request a `buildEvaluateInput` no trae `maxImpactRatio`, la respuesta es 200 y viene la `Evaluation`; sin el campo → tampoco.
-2. **La frontera «tope igual al impacto no viola» no tiene test** (spec, Contexto y Casos borde; es la razón de escribir «no supera el»). `tests/evaluate.test.ts:697-716` solo prueba una violación (0,1 % contra 0,2 %). **Arreglo**: un unitario en `tests/evaluate.test.ts` donde el ganador impacta igual al tope y `constraints.violated` queda `[]`. Que el tope salga de `impactRatioFromPercent("0,7")` y el impacto sea `0.7 / 100` (como en `lib/binance/trading.ts:144`), para fijar que el punto flotante no convierte el «igual» en violación.
-3. **El criterio «`buildEvaluateInput` reenvía `maxImpactRatio` solo si vino un número finito mayor a cero (unitario)» está a medias** (`tests/evaluation-input.test.ts:256-268`). Prueba un positivo y el ausente, no el «solo si». La guarda de `lib/evaluation-input.ts:141` no tiene test. **Arreglo**: en el mismo `it`, `0`, `-0.01`, `NaN` e `Infinity` → `constraints` `undefined`.
-4. **El contrato de la pantalla con la ruta no tiene test** (`components/stock-proof-screen.tsx:97-99`). La spec dice «el texto escrito, con punto decimal» y «Tope vacío en vivo: no se manda `maxImpactPercent`». **Arreglo**: un e2e con `page.route("**/api/evaluate", ...)` en la escena «En vivo» que capture `request.postDataJSON()` y responda un `Evaluation` de ejemplo: con «0,5» el cuerpo trae `maxImpactPercent: "0.5"`; con el tope vacío, el cuerpo no trae la clave. Sin red real.
+- Ninguno.
 
 ### Hallazgos no bloqueantes
 
-- **`progress/` y la spec quedaron con datos de antes del rebase**: `progress/current.md:4` dice «sobre `main` (`8c0860a`)» (ahora es `2e05e8b`); `progress/current.md:13`, `specs/textos-motivo-y-frase.md:62` y el cuerpo del PR dicen «179 unitarios, 12 e2e» (ahora 200 y 13). `progress/current.md:9` todavía dice que el e2e «lo ve en `salida-riesgo`», cuando ahora ve «sin dato». Corregir al sumar los tests.
-- **La nota del rebase atribuye mal un test**: «Se quitó el unitario "reference y regime…"» (`progress/current.md:27`). Ese test ya no existe en `origin/main`: lo sacó #45, no este rebase. No cambia nada del código; corregir la frase para que nadie lo busque en este diff.
-- **`Number()` acepta formatos raros** (`lib/phrase.ts:9`): «0x10» da 16 % y «1e1» da 10 %. No rompe nada (sigue en (0, 100]), pero una regex `^\d+([.,]\d+)?$` dejaría la frase en «porcentaje escrito por una persona». Se puede hacer en otra tarea.
-- **Un tope inválido también bloquea las escenas de ejemplo** (`stock-proof-screen.tsx:76-86`), aunque la spec dice que las escenas ignoran el tope tipeado. Es coherente con «Inválido: la pantalla no evalúa», pero conviene dejarlo escrito en la spec para que no se lea como contradicción.
-- **El criterio de señales dice «las dos escenas que pasan»** (`specs/textos-motivo-y-frase.md:58`): ahora son tres (`passTopeFrase`). Opcional sumar la aserción ahí también.
-- **`check-map` sale `1`** (falta `docs/mapa-agentes.json`, también en `main`). Ya está como pendiente en la revisión del cableado; no se exige acá.
+- `e2e/landing.spec.ts:51` solo comprueba «Firmar swap» deshabilitado en la última pestaña; el criterio dice «ninguna pestaña». Hoy el botón está fijo en `disabled` (`components/evaluation-result.tsx:212`), así que no hay riesgo real; se puede iterar las cuatro pestañas.
+- `dispose` no llama `renderer.forceContextLoss()`: al ir y volver entre `/` y `/app` con navegación cliente, cada montaje crea un contexto WebGL y el navegador los libera tarde (Chrome avisa desde ~16). Agregarlo antes de `renderer.dispose()` (`operation-scene.tsx:310`).
+- Pestañas sin `Home`/`End` (opcional en el patrón ARIA de tabs).
+- El filtro `/three/i` del e2e depende del nombre de chunk del servidor de desarrollo; con `next build` los chunks tienen hash y el chequeo pasaría vacío. Hoy e2e y CI corren contra `npm run dev`, así que vale.
+- El e2e de movimiento reducido se saltea si el navegador no tiene WebGL; en CI conviene confirmar en el log que corre.
+- El link «Probar con tu ticker y tu monto» de la muestra (`example-showcase.tsx:104`) no tiene e2e.
+- `app/globals.css` repite `@media (max-width: 1100px)` al final; se puede unir con el bloque de arriba.
+- Tamaño: unas 950 líneas con CSS y tests (unas 700 de producción), por encima de las 450 estimadas en la spec. Es un solo slice coherente (ruta, muestra y escena), así que se revisó igual.
 
-### Segunda vuelta (2026-10-03)
+### Retro (mejorar-skills, sin publicar)
 
-**Veredicto: Aprobado.** Revisor: revisor general estricto (harness, Cursor), sobre `feat/textos-y-frase` (`4f4b4b0` + cambios sin commitear: `tests/evaluate-route.test.ts` nuevo, `tests/evaluate.test.ts`, `tests/evaluation-input.test.ts`, `e2e/pantalla.spec.ts`, `specs/textos-motivo-y-frase.md`, `progress/current.md`).
+- **Skill:** reviewer + verify-check + check-map. **Desvío:** ninguno. **Decisión no cubierta:** cómo probar «no carga three» sin depender del nombre de chunk de dev. **Revisión:** cobertura parcial del criterio de firma deshabilitada y falta de `forceContextLoss`.
 
-#### Comandos corridos
+### Después de la aprobación (líder, 2026-10-03)
 
-- `git status --short` y `git diff --stat HEAD`: cambian solo los 5 archivos de arriba más el test nuevo. `git diff --quiet HEAD -- app lib components`: **sin cambios de producción**.
-- `git diff HEAD` completo (tests, e2e, spec, progress) y `git diff --stat origin/main` (17 archivos, +559/−80, más los 65 del test nuevo).
-- `npm run check` con Node `v20.20.2` — **en verde**: eslint y `tsc` limpios, **214 unitarios** (16 archivos) y **15 e2e**.
-- Mutaciones temporales del código de producción, una por bloqueante, con `sha256sum` antes y `git checkout -- <archivo>` después (los archivos de producción no tenían cambios sin commitear):
-  - Ruta, un inválido pasa como `0` (`app/api/evaluate/route.ts:44`): **3 de 9** fallan en `tests/evaluate-route.test.ts` («0», «150», «abc»).
-  - Ruta, el tope se ignora (`route.ts:30`): **3 de 9** fallan (las tres conversiones).
-  - `evaluate`, `>` pasa a `>=` (`lib/evaluate.ts:605`): falla el unitario de la frontera.
-  - `constraintsField` sin la guarda (`lib/evaluation-input.ts:141`): fallan los **4** casos de `it.each`.
-  - Pantalla sin `.replace(",", ".")` (`components/stock-proof-screen.tsx:99`): falla el e2e de «0,5» (`Received: "0,5"`).
-  - Pantalla que manda el tope vacío (`stock-proof-screen.tsx:97`): falla el e2e del tope vacío (`Received value: ""`).
-  - Después de restaurar: `sha256sum -c` **OK** en los cuatro archivos y `git diff --stat HEAD` sigue mostrando solo tests, e2e, spec y progress.
-- `check-map` sobre el diff contra `origin/main` más el test nuevo: sigue en **`1`** (falta el mapa, igual que en `main`). No es `2`.
-- Búsqueda de secretos en `git diff HEAD`: nada nuevo. Sin `.env`, sin commit, sin push.
+- No bloqueante 1, resuelto: `e2e/landing.spec.ts` comprueba en cada pestaña que no haya un botón «Firmar swap» habilitado.
+- No bloqueante 2, resuelto: `dispose` llama a `renderer.forceContextLoss()` (`components/operation-scene.tsx`).
+- `npm run check` sigue en verde (Node 20: 219 unitarios, 20 e2e). El resto de los no bloqueantes quedan anotados para otra tarea.
 
-#### Bloqueantes de la primera vuelta
+### Ajuste de espaciado de la muestra (líder, 2026-10-03, pedido de Agustín)
 
-1. **Resuelto.** `tests/evaluate-route.test.ts` mockea `buildEvaluateInput`, deja el `evaluate` real y llama a `POST`. `"0.5"`, `0.5` y `"1"` llegan como fracción. `"0"`, `"150"`, `"abc"`, `true` y `null` llegan sin `maxImpactRatio`, con 200 y con la `Evaluation`. Sin tope en el cuerpo no se inventa uno. Las mutaciones lo confirman.
-2. **Resuelto.** `tests/evaluate.test.ts:719-735`: el tope sale de `impactRatioFromPercent("0,7")` y el impacto es `0.7 / 100`; da `violated: []`. Con `>=` falla.
-3. **Resuelto.** `tests/evaluation-input.test.ts:270-279`: `0`, `-0.01`, `NaN` e `Infinity` dejan `constraints` en `undefined`. Sin la guarda fallan los cuatro.
-4. **Resuelto.** `e2e/pantalla.spec.ts:76-106`: «En vivo» con `page.route` (sin red real). «0,5» viaja como `"0.5"`; el tope vacío no manda la clave; se comprueba una sola llamada y que la pantalla pinte el resultado. Cada mutación rompe su caso.
-
-#### Spec y progress
-
-- La spec suma tres criterios (ruta, frontera, contrato pantalla→ruta), cada uno con su test. Aclara que un tope inválido frena en cualquier escena, coherente con `stock-proof-screen.tsx:76-82`. Los conteos (214 y 15) coinciden con este `check`.
-- `progress/current.md`: rama sobre `2e05e8b`, criterios al día, y la nota del test quitado ahora dice que lo sacó #45.
-
-#### Hallazgos (no bloqueantes)
-
-- En `tests/evaluate-route.test.ts`, los casos `true` y `null` no fallan con la mutación «el inválido pasa como 0»: los frena antes el `typeof` de `route.ts:42`. Tampoco fallarían sin ese `typeof`, porque `"true"` y `"null"` dan `null`. Sobran, pero documentan el contrato y no estorban.
-- El cuerpo del PR #44 todavía dice «179 unitarios, 12 e2e». No es del repo; actualizarlo al pushear.
-- `progress/current.md:3` dice «Estado: en revisión». Con esta aprobación, el líder lo pasa a terminada al cerrar.
-- Siguen para otra tarea: formatos raros en `lib/phrase.ts:9` (`0x10`, `1e1`) y crear `docs/mapa-agentes.json`.
+- El resultado de la muestra no tenía padding (pegaba al borde): ahora usa la misma escala que `.demo-output` de la app (2 rem; 1,25 rem en móvil). Más aire entre el título y las pestañas, en las pestañas, en la leyenda y en el pie.
+- La escena llena el alto visible (`clamp(30rem, 100vh - 6.5rem, 46rem)`) para no dejar un hueco al lado del resultado largo; la columna del resultado gana ancho (1fr / 1,1fr).
+- En ≤ 760 px la tabla de cotizaciones (compartida con `/app`) deja de partir palabras: celdas en una línea y desliza de costado dentro de su caja, sin desbordar la página.
+- Solo CSS. `npm run check` en verde (219 unitarios, 20 e2e).

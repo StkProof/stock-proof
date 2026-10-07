@@ -26,11 +26,12 @@ import {
   SIN_DATO,
   WRAPPER_LABEL,
 } from "./messages";
+import {
+  QUESTION_IDS,
+  questionStatuses,
+  type QuestionStatus,
+} from "@/lib/question-statuses";
 import styles from "./stock-proof.module.css";
-
-const QUESTION_IDS = [1, 2, 3, 4] as const;
-
-type QuestionStatus = "passed" | "cut" | "unknown" | "skipped";
 
 const STATUS_TEXT: Record<QuestionStatus, string> = {
   passed: "Pasó",
@@ -45,32 +46,6 @@ const STATUS_CLASS: Record<QuestionStatus, string> = {
   unknown: styles.qUnknown,
   skipped: styles.qSkipped,
 };
-
-/**
- * Las preguntas corren en orden: en un `cut`/`unavailable` de la pregunta N las
- * anteriores pasaron y las siguientes no se corrieron (spec de formato).
- */
-function questionStatuses(
-  evaluation: Evaluation,
-): Record<(typeof QUESTION_IDS)[number], QuestionStatus> {
-  if (evaluation.kind === "pass") {
-    return { 1: "passed", 2: "passed", 3: "passed", 4: "passed" };
-  }
-  if (evaluation.kind === "invalid") {
-    return { 1: "skipped", 2: "skipped", 3: "skipped", 4: "skipped" };
-  }
-  const statuses = {} as Record<(typeof QUESTION_IDS)[number], QuestionStatus>;
-  for (const id of QUESTION_IDS) {
-    if (id < evaluation.question) {
-      statuses[id] = "passed";
-    } else if (id === evaluation.question) {
-      statuses[id] = evaluation.kind === "cut" ? "cut" : "unknown";
-    } else {
-      statuses[id] = "skipped";
-    }
-  }
-  return statuses;
-}
 
 const VERDICT: Record<
   Evaluation["kind"],
