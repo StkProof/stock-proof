@@ -25,7 +25,7 @@ Esta spec separa las dos pantallas: `/` cuenta, `/app` evalúa.
 ### App (`/app`)
 
 1. Encabezado mínimo: el logo, que lleva a `/`. Sin links a secciones ni botón «Probar».
-2. El contenido es la pantalla de evaluación actual (`StockProofScreen`), sin cambios de comportamiento: formulario con la frase y el tope, selector de escenas, escena «En vivo», resultado.
+2. El contenido es la pantalla de evaluación (`StockProofScreen`): formulario con la frase y el tope, selector de casos, «En vivo», resultado. Cómo abre y cómo aplica cada caso está en `specs/casos-al-elegir.md`.
 3. Pie con la advertencia que hoy está en la landing (la escena en vivo consulta Binance, no es consejo de inversión, sin afiliación con los emisores).
 4. Título propio de la pestaña del navegador: «StockProof — Evaluá la operación».
 
